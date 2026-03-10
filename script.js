@@ -903,6 +903,8 @@ let selectedChapter = null;
 let currentQuizQuestions = [];
 let currentQIndex = 0;
 let quizScore = 0;
+let lastQuizLog = [];    // stores {q, chose, correct, isCorrect} for review
+let lastDailyLog = [];
 let quizMode = 'chapter';
 let dailySubjectFilter = '__all__';
 
@@ -1107,7 +1109,7 @@ function generateQuiz() {
   let paddedFrom = '';
 
   if (strictPool.length >= count) {
-    finalPool = pickFromDeck(strictPool, count);
+    finalPool = pickQuestions(strictPool, count);
   } else {
     // Not enough in strict pool — use all of them + pad from wider pool
     const allQ      = getActiveQuestions();
@@ -1128,7 +1130,7 @@ function generateQuiz() {
     }
 
     const needed = count - strictPool.length;
-    finalPool = shuffle([...pickFromDeck(strictPool, strictPool.length), ...pickFromDeck(padPool, needed)]);
+    finalPool = shuffle([...pickQuestions(strictPool, strictPool.length), ...pickQuestions(padPool, needed)]);
     padded    = true;
   }
 
@@ -1138,6 +1140,7 @@ function generateQuiz() {
   currentQuizQuestions = finalPool;
   currentQIndex = 0;
   quizScore     = 0;
+  lastQuizLog   = [];
 
   document.getElementById('quiz-setup').style.display = 'none';
   document.getElementById('quiz-result').style.display = 'none';
@@ -1178,7 +1181,7 @@ function generateDailyPractice() {
     return;
   }
 
-  const picked = pickFromDeck(pool, Math.min(20, pool.length));
+  const picked = pickQuestions(pool, Math.min(20, pool.length));
   picked.forEach(q => { delete q._shuffled; delete q._correctText; });
 
   currentQuizQuestions = picked;
@@ -1186,6 +1189,7 @@ function generateDailyPractice() {
   quizScore = 0;
   dailyScore = 0;
   dailyIndex = 0;
+  lastDailyLog = [];
 
   // Reset UI
   document.getElementById('daily-result').style.display = 'none';
@@ -1250,6 +1254,7 @@ function checkAnswer(chosen) {
   const chosenText  = q._shuffled[chosen];
   const correctIdx  = q._shuffled.indexOf(correctText);
   const isCorrect   = chosenText === correctText;
+  lastQuizLog[currentQIndex] = { q, chose: chosenText, correct: correctText, isCorrect };
 
   document.querySelectorAll('.option-btn').forEach((btn, i) => {
     btn.disabled = true;
@@ -1311,6 +1316,7 @@ function showQuizResult() {
         <button class="big-btn btn-orange" onclick="showPage('page-home')">Home 🏠</button>
       </div>
     </div>
+    ${buildAnswerReview(lastQuizLog)}
   `;
 }
 
@@ -1362,6 +1368,7 @@ function checkDailyAnswer(chosen) {
   const chosenText  = q._shuffled[chosen];
   const correctIdx  = q._shuffled.indexOf(correctText);
   const isCorrect   = chosenText === correctText;
+  lastDailyLog[dailyIndex] = { q, chose: chosenText, correct: correctText, isCorrect };
 
   document.querySelectorAll('#daily-options-grid .option-btn').forEach((btn, i) => {
     btn.disabled = true;
@@ -1377,6 +1384,9 @@ function checkDailyAnswer(chosen) {
     q.learningObjective ? `<div class="fb-meta">🎯 <b>Learning Objective:</b> ${q.learningObjective}</div>` : '',
     q.ncertReference    ? `<div class="fb-meta">📘 <b>NCERT Ref:</b> ${q.ncertReference}</div>` : ''
   ].filter(Boolean).join('');
+
+  // Log for answer review
+  lastDailyLog[dailyIndex] = { q, chose: chosenText, correct: correctText, isCorrect };
 
   if (isCorrect) {
     dailyScore++;
@@ -1419,7 +1429,386 @@ function showDailyResult() {
         <button class="big-btn btn-orange" onclick="showPage('page-home')">Home 🏠</button>
       </div>
     </div>
+    ${buildAnswerReview(lastDailyLog)}
   `;
+}
+
+
+// =====================================================
+// SECTION 12b: TERM & ANNUAL EXAM ENGINE
+// =====================================================
+
+const EXAM_CONFIG = {
+  term: {
+    label: 'Term Exam',
+    emoji: '📋',
+    totalMarks: 50,
+    timeMinutes: 90,
+    sections: [
+      { id:'mcq',   title:'Section A – Multiple Choice Questions', type:'mcq',   count:20, marksEach:1, note:'(20 × 1 = 20 Marks)' },
+      { id:'short', title:'Section B – Short Answer Questions',    type:'short', count:5,  marksEach:2, note:'(5 × 2 = 10 Marks)' },
+      { id:'long',  title:'Section C – Long Answer Questions',     type:'long',  count:3,  marksEach:5, note:'(3 × 5 = 15 Marks)' },
+      { id:'essay', title:'Section D – Essay Question',            type:'essay', count:1,  marksEach:5, note:'(1 × 5 = 5 Marks)' }
+    ]
+  },
+  annual: {
+    label: 'Annual Exam',
+    emoji: '🏅',
+    totalMarks: 80,
+    timeMinutes: 180,
+    sections: [
+      { id:'mcq',   title:'Section A – Multiple Choice Questions', type:'mcq',   count:30, marksEach:1,  note:'(30 × 1 = 30 Marks)' },
+      { id:'short', title:'Section B – Short Answer Questions',    type:'short', count:6,  marksEach:2,  note:'(6 × 2 = 12 Marks)' },
+      { id:'long',  title:'Section C – Long Answer Questions',     type:'long',  count:4,  marksEach:5,  note:'(4 × 5 = 20 Marks)' },
+      { id:'essay', title:'Section D – Essay / Value-Based',       type:'essay', count:2,  marksEach:9,  note:'(2 × 9 = 18 Marks)' }
+    ]
+  }
+};
+
+const ESSAY_QUESTIONS = [
+  { q:"Write an essay on 'The Importance of Trees and Forests for our Planet'. (Hints: oxygen, habitat, climate, deforestation)", subj:"Science/English" },
+  { q:"Describe the water cycle in detail. How do human activities affect it?", subj:"Science" },
+  { q:"Write an essay on 'Democracy and its Importance in Modern Society'.", subj:"SST/English" },
+  { q:"Explain how the Mughal Empire influenced Indian culture, architecture and administration.", subj:"SST" },
+  { q:"Write a descriptive essay on 'A Day in the Life of a Farmer in India'.", subj:"English" },
+  { q:"Discuss the role of science and technology in improving human health and agriculture.", subj:"Science" },
+];
+
+let examType = null;
+let examConfig = null;
+let examQuestions = {};   // { sectionId: [questions] }
+let examAnswers = {};     // { 'mcq-0': 2, 'short-0': 'text', ... }
+let examTimer = null;
+let examSecondsLeft = 0;
+let examSubmitted = false;
+
+function startExam(type) {
+  examType = type;
+  examConfig = EXAM_CONFIG[type];
+  examSubmitted = false;
+  examAnswers = {};
+  examQuestions = {};
+
+  // Clear any running timer
+  if (examTimer) clearInterval(examTimer);
+
+  showPage('page-exam');
+  document.getElementById('exam-page-title').textContent = examConfig.emoji + ' ' + examConfig.label;
+  document.getElementById('exam-page-sub').textContent = examConfig.totalMarks + ' Marks · ' + examConfig.timeMinutes + ' Minutes';
+
+  // Info banner
+  document.getElementById('exam-header-banner').innerHTML = `
+    <div class="exam-info-banner">
+      <span class="exam-info-pill">📋 ${examConfig.label}</span>
+      <span class="exam-info-pill">⭐ ${examConfig.totalMarks} Marks</span>
+      <span class="exam-info-pill">⏱ ${examConfig.timeMinutes} mins</span>
+      <span class="exam-info-pill">📚 ${getActiveClass() ? 'Class ' + getActiveClass() : 'All Classes'}</span>
+      <button class="exam-pdf-btn" onclick="downloadExamPDF()" style="padding:5px 14px;font-size:12px;">📄 Download Paper PDF</button>
+    </div>`;
+
+  generateExamContent();
+  startExamTimer();
+}
+
+function generateExamContent() {
+  const allQ = getActiveQuestions();
+  const cfg  = examConfig;
+  let html   = '';
+
+  cfg.sections.forEach(sec => {
+    let pool, sectionHTML = '';
+
+    if (sec.type === 'mcq') {
+      pool = pickQuestions(allQ, sec.count);
+      examQuestions[sec.id] = pool;
+      sectionHTML = pool.map((q, i) => {
+        const labels = ['A','B','C','D'];
+        const opts   = shuffle([...q.opts]);
+        q._examShuffled = opts;
+        q._examCorrect  = typeof q.ans === 'string' ? q.ans : q.opts[q.ans];
+        return `
+          <div class="exam-q-block">
+            <div class="exam-q-num">Q${i+1}. <span class="exam-q-marks">${sec.marksEach} mark</span></div>
+            <div class="exam-q-text">${q.q}</div>
+            <div class="exam-opt-list">
+              ${opts.map((opt,oi) => `
+                <label class="exam-opt" id="exam-opt-${sec.id}-${i}-${oi}">
+                  <input type="radio" name="exam-${sec.id}-${i}" value="${oi}"
+                    onchange="recordExamAnswer('${sec.id}',${i},${oi},this.closest('label').closest('.exam-opt-list'))">
+                  <span><b>${labels[oi]}.</b> ${opt}</span>
+                </label>`).join('')}
+            </div>
+          </div>`;
+      }).join('');
+
+    } else if (sec.type === 'short') {
+      pool = shuffle([...SHORT_QUESTIONS]).slice(0, sec.count);
+      examQuestions[sec.id] = pool;
+      sectionHTML = pool.map((q,i) => `
+        <div class="exam-q-block">
+          <div class="exam-q-num">Q${i+1}. <span class="exam-q-marks">${sec.marksEach} marks</span> <small style="color:var(--clr-muted)">(${q.subj})</small></div>
+          <div class="exam-q-text">${q.q}</div>
+          <textarea class="exam-textarea" rows="3" placeholder="Write your answer here…"
+            id="exam-short-${i}" oninput="recordExamText('${sec.id}',${i},this.value)"></textarea>
+        </div>`).join('');
+
+    } else if (sec.type === 'long') {
+      pool = shuffle([...LONG_QUESTIONS]).slice(0, sec.count);
+      examQuestions[sec.id] = pool;
+      sectionHTML = pool.map((q,i) => `
+        <div class="exam-q-block">
+          <div class="exam-q-num">Q${i+1}. <span class="exam-q-marks">${sec.marksEach} marks</span> <small style="color:var(--clr-muted)">(${q.subj})</small></div>
+          <div class="exam-q-text">${q.q}</div>
+          <textarea class="exam-textarea" rows="5" placeholder="Write your detailed answer here… 📝"
+            id="exam-long-${i}" oninput="recordExamText('${sec.id}',${i},this.value)"></textarea>
+        </div>`).join('');
+
+    } else if (sec.type === 'essay') {
+      pool = shuffle([...ESSAY_QUESTIONS]).slice(0, sec.count);
+      examQuestions[sec.id] = pool;
+      sectionHTML = pool.map((q,i) => `
+        <div class="exam-q-block">
+          <div class="exam-q-num">Q${i+1}. <span class="exam-q-marks">${sec.marksEach} marks</span> <small style="color:var(--clr-muted)">(${q.subj})</small></div>
+          <div class="exam-q-text">${q.q}</div>
+          <textarea class="exam-textarea" rows="7" placeholder="Write your essay here… ✍️"
+            id="exam-essay-${i}" oninput="recordExamText('${sec.id}',${i},this.value)"></textarea>
+        </div>`).join('');
+    }
+
+    html += `
+      <div class="exam-section">
+        <div class="exam-section-title">${sec.title} <span style="font-size:13px;font-weight:600;color:var(--clr-muted)">${sec.note}</span></div>
+        ${sectionHTML}
+      </div>`;
+  });
+
+  html += `
+    <div class="exam-submit-row">
+      <button class="big-btn btn-purple" onclick="submitExam()">Submit Exam ✅</button>
+      <button class="exam-pdf-btn" onclick="downloadExamPDF()">📄 Download Paper PDF</button>
+    </div>`;
+
+  document.getElementById('exam-content').innerHTML = html;
+  document.getElementById('exam-result').style.display = 'none';
+}
+
+function recordExamAnswer(secId, qi, optIdx, optList) {
+  examAnswers[secId + '-' + qi] = optIdx;
+  optList.querySelectorAll('.exam-opt').forEach((el,i) => {
+    el.classList.toggle('selected', i === optIdx);
+  });
+}
+
+function recordExamText(secId, qi, val) {
+  examAnswers[secId + '-' + qi] = val;
+}
+
+function startExamTimer() {
+  examSecondsLeft = examConfig.timeMinutes * 60;
+  const bar     = document.getElementById('exam-timer-bar');
+  const display = document.getElementById('exam-timer-display');
+  const warning = document.getElementById('exam-timer-warning');
+  bar.style.display = 'flex';
+
+  function tick() {
+    if (examSubmitted) return;
+    const m = Math.floor(examSecondsLeft / 60);
+    const s = examSecondsLeft % 60;
+    display.textContent = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+    warning.style.display = examSecondsLeft <= 300 ? 'inline' : 'none';
+    if (examSecondsLeft <= 0) {
+      clearInterval(examTimer);
+      showToast('⏰ Time up! Auto-submitting…');
+      submitExam();
+      return;
+    }
+    examSecondsLeft--;
+  }
+  tick();
+  examTimer = setInterval(tick, 1000);
+}
+
+function submitExam() {
+  if (examSubmitted) return;
+  examSubmitted = true;
+  if (examTimer) clearInterval(examTimer);
+
+  const cfg = examConfig;
+  let totalScore = 0, totalMax = 0;
+  const breakdown = [];
+
+  cfg.sections.forEach(sec => {
+    let secScore = 0, secMax = sec.count * sec.marksEach;
+    totalMax += secMax;
+
+    if (sec.type === 'mcq') {
+      const qs = examQuestions[sec.id] || [];
+      qs.forEach((q,i) => {
+        const chosen = examAnswers[sec.id + '-' + i];
+        const correct = q._examCorrect;
+        const chosenText = (q._examShuffled || q.opts)[chosen];
+        if (chosenText === correct) { secScore += sec.marksEach; updateProgress(q.subject, true); }
+        else if (chosen !== undefined) updateProgress(q.subject, false);
+      });
+    } else {
+      const qs = examQuestions[sec.id] || [];
+      qs.forEach((_,i) => {
+        const ans = (examAnswers[sec.id + '-' + i] || '').trim();
+        // Estimate: full marks if long enough, partial otherwise
+        const minLen = sec.type === 'essay' ? 150 : sec.type === 'long' ? 80 : 30;
+        if (ans.length >= minLen) secScore += sec.marksEach;
+        else if (ans.length >= minLen * 0.4) secScore += Math.round(sec.marksEach * 0.5);
+      });
+    }
+    totalScore += secScore;
+    breakdown.push({ label: sec.title.replace('Section ',''), score: secScore, max: secMax });
+  });
+
+  const pct   = Math.round((totalScore / totalMax) * 100);
+  const grade = pct >= 90 ? 'A+' : pct >= 75 ? 'A' : pct >= 60 ? 'B' : pct >= 45 ? 'C' : 'D';
+  const emoji  = pct >= 75 ? '🏆' : pct >= 50 ? '⭐' : '💪';
+
+  document.getElementById('exam-content').style.display = 'none';
+  document.getElementById('exam-timer-bar').style.display = 'none';
+
+  const bdHTML = breakdown.map(b =>
+    `<div>📌 <b>${b.label}:</b> ${b.score} / ${b.max}</div>`).join('');
+
+  const res = document.getElementById('exam-result');
+  res.style.display = 'block';
+  res.innerHTML = `
+    <div class="result-card">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title">${cfg.label} Complete!</div>
+      <div class="result-score">${totalScore} / ${totalMax}</div>
+      <div style="font-size:28px;font-weight:900;color:var(--clr-green);margin:6px 0">Grade: ${grade}</div>
+      <div class="exam-result-breakdown">${bdHTML}
+        <div style="margin-top:8px;font-size:12px;color:var(--clr-muted)">
+          ✍️ Written answers scored by length estimate. Ask your teacher for exact marks!
+        </div>
+      </div>
+      <div class="result-actions" style="flex-wrap:wrap;">
+        <button class="big-btn btn-green"  onclick="startExam('${examType}')">Try Again 🔄</button>
+        <button class="exam-pdf-btn"       onclick="downloadExamPDF()">📄 Download Paper</button>
+        <button class="big-btn btn-orange" onclick="showPage('page-home')">Home 🏠</button>
+      </div>
+    </div>`;
+}
+
+// ── PDF Generation ─────────────────────────────────────────────────────────
+function downloadExamPDF() {
+  const { jsPDF } = window.jspdf;
+  if (!jsPDF) { showToast('PDF library not loaded yet. Try again in a moment.'); return; }
+
+  const cfg   = examConfig;
+  const cls   = getActiveClass() ? 'Class ' + getActiveClass() : 'All Classes';
+  const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' });
+  const doc   = new jsPDF({ unit:'mm', format:'a4' });
+  const W     = doc.internal.pageSize.getWidth();
+  const margin = 15;
+  const usable = W - margin * 2;
+  let y = 20;
+
+  const safeText = (t) => (t || '').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[^\x00-\x7F]/g, (c) => {
+    const map = {'\u2013':'-','\u2014':'--','\u2026':'...','\u00A0':' '};
+    return map[c] || '?';
+  });
+
+  function checkPage(needed = 8) {
+    if (y + needed > 275) { doc.addPage(); y = 20; }
+  }
+
+  function hline(yy) {
+    doc.setDrawColor(180); doc.setLineWidth(0.3);
+    doc.line(margin, yy, W - margin, yy);
+  }
+
+  // ── Header ──
+  doc.setFillColor(79, 70, 229);
+  doc.rect(0, 0, W, 18, 'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(255,255,255);
+  doc.text('AI STUDY BUDDY — ' + safeText(cfg.label.toUpperCase()), W/2, 11, {align:'center'});
+
+  y = 26;
+  doc.setTextColor(30,27,75); doc.setFont('helvetica','bold'); doc.setFontSize(11);
+  doc.text(safeText(cfg.label + ' Examination Paper'), W/2, y, {align:'center'}); y+=7;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(100,100,120);
+  doc.text('Date: ' + today + '     Subject: ' + safeText(cls) + '     Total Marks: ' + cfg.totalMarks + '     Time: ' + cfg.timeMinutes + ' mins', W/2, y, {align:'center'}); y+=5;
+  hline(y); y+=6;
+
+  // General instructions
+  doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(60,60,80);
+  doc.text('General Instructions:', margin, y); y+=5;
+  doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(80,80,100);
+  const instrs = [
+    '1. All questions are compulsory unless stated otherwise.',
+    '2. Write clearly and neatly. Marks will be deducted for illegible answers.',
+    '3. For MCQ, choose the best option. Marks are not deducted for wrong answers.',
+  ];
+  instrs.forEach(t => { doc.text(safeText(t), margin + 2, y); y += 4.5; });
+  hline(y); y += 6;
+
+  // ── Sections ──
+  const labels = ['A','B','C','D'];
+
+  cfg.sections.forEach(sec => {
+    checkPage(14);
+    doc.setFillColor(238, 242, 255);
+    doc.roundedRect(margin, y - 4, usable, 12, 2, 2, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(79,70,229);
+    doc.text(safeText(sec.title + '  ' + sec.note), margin + 4, y + 3); y += 13;
+
+    const qs = examQuestions[sec.id] || [];
+    qs.forEach((q, qi) => {
+      checkPage(16);
+      const qnum = 'Q' + (qi + 1) + '.';
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(50,50,70);
+      doc.text(qnum + ' [' + sec.marksEach + (sec.marksEach>1?' marks':' mark') + ']', margin, y);
+      y += 5;
+
+      doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(30,30,50);
+      const qLines = doc.splitTextToSize(safeText(q.q || q.q), usable - 4);
+      qLines.forEach(line => { checkPage(6); doc.text(line, margin + 4, y); y += 5; });
+
+      if (sec.type === 'mcq') {
+        const opts = q._examShuffled || q.opts || [];
+        opts.forEach((opt, oi) => {
+          checkPage(6);
+          doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(60,60,80);
+          const optLine = doc.splitTextToSize(safeText('(' + labels[oi] + ') ' + opt), (usable/2) - 4);
+          const xOff = (oi % 2 === 0) ? margin + 6 : margin + 6 + usable / 2;
+          if (oi % 2 === 0 && oi > 0) y += 5;
+          optLine.forEach((line, li) => { if(li===0) doc.text(line, xOff, y); });
+          if (oi % 2 === 1 || oi === opts.length - 1) y += 5;
+        });
+        y += 2;
+      } else {
+        // Answer lines
+        const lineCount = sec.type === 'essay' ? 8 : sec.type === 'long' ? 5 : 3;
+        for (let l = 0; l < lineCount; l++) {
+          checkPage(6);
+          doc.setDrawColor(200); doc.setLineWidth(0.2);
+          doc.line(margin + 4, y, W - margin - 4, y); y += 6;
+        }
+        y += 2;
+      }
+    });
+    y += 4;
+  });
+
+  // Footer on every page
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(150,150,170);
+    hline(285);
+    doc.text('AI Study Buddy  |  ' + safeText(cfg.label) + '  |  ' + cls, margin, 290);
+    doc.text('Page ' + p + ' of ' + pageCount, W - margin, 290, { align:'right' });
+  }
+
+  const fname = safeText(cfg.label.replace(/\s+/g,'-')) + '-' + cls.replace(/\s+/g,'-') + '-' + new Date().getFullYear() + '.pdf';
+  doc.save(fname);
+  showToast('📄 Exam paper downloaded!');
 }
 
 // =====================================================
@@ -1625,7 +2014,7 @@ function resetProgress() {
 // SECTION 14: RANDOMISATION & HELPERS
 // =====================================================
 
-// Pure Fisher-Yates shuffle — returns a new shuffled array, never mutates input
+// Pure Fisher-Yates shuffle — new array, never mutates input
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -1635,55 +2024,88 @@ function shuffle(arr) {
   return a;
 }
 
-// ── Deck / queue system ──────────────────────────────────────────────────────
+// ── Session-level seen-set ──────────────────────────────────────────────────
 //
-// How it works:
-//   Each unique pool of questions (identified by a stable key) gets its own
-//   "deck" — a pre-shuffled queue of ALL questions in that pool.
-//   pickFromDeck() pops from the front of the deck.
-//   When the deck runs out it is re-shuffled from the full pool, BUT the last
-//   batch of questions is moved to the back so they are never immediately
-//   repeated.  This guarantees:
-//     • No duplicate questions within a single quiz.
-//     • Questions that appeared in quiz N don't appear again until the full
-//       pool has been exhausted (or only top-ups remain).
+// Single rule: never show the same question twice until every question
+// in that subject+chapter pool has been seen at least once.
 //
-const _decks = {};   // { deckKey: { queue: [...questions] } }
+// Keyed by subject+chapter (not pool size/contents) so filter changes
+// (difficulty, topic) don't accidentally create a new key and reset state.
+//
+// Algorithm (same as Khan Academy / Duolingo):
+//   1. Filter pool down to candidates = pool MINUS recently-seen questions.
+//   2. If candidates < n, reset seen set and use full pool.
+//   3. Shuffle candidates, take first n.
+//   4. Record picked questions as seen.
+//
+const _seen = {};   // { "subject::chapter" : Set of question texts }
 
-function _deckKey(pool) {
-  // Stable key: sorted unique question texts joined, so the same logical pool
-  // always maps to the same deck regardless of array order.
-  return pool.map(q => (q.q || '').slice(0, 40)).sort().join('|');
+function _seenKey(pool) {
+  // Key is the LOGICAL scope (subject + chapter), NOT the pool contents.
+  // This stays stable even when difficulty/topic filters change pool size.
+  if (!pool.length) return '__empty__';
+  const s = pool[0].subject  || '__all__';
+  const c = pool[0].chapter  || '__all__';
+  return `${s}::${c}`;
 }
 
-// Return n questions from the deck for this pool, guaranteed unique within the batch.
-function pickFromDeck(pool, n) {
+function pickQuestions(pool, n) {
   if (!pool.length) return [];
   n = Math.min(n, pool.length);
 
-  const key = _deckKey(pool);
+  const key = _seenKey(pool);
+  if (!_seen[key]) _seen[key] = new Set();
 
-  // Initialise deck if it doesn't exist yet
-  if (!_decks[key]) {
-    _decks[key] = { queue: shuffle(pool), lastBatch: [] };
+  // Candidates = questions in this pool that haven't been seen yet
+  let candidates = pool.filter(q => !_seen[key].has(q.q));
+
+  // If not enough unseen questions, reset and use the full pool
+  if (candidates.length < n) {
+    _seen[key] = new Set();
+    candidates = [...pool];
   }
 
-  const deck = _decks[key];
+  // Shuffle and take first n — guaranteed no repeats within one call
+  const picked = shuffle(candidates).slice(0, n);
 
-  // If deck has fewer cards than needed, refill:
-  // shuffle the full pool, but push the lastBatch to the END so they appear
-  // last — preventing immediate repeats.
-  if (deck.queue.length < n) {
-    const lastIds  = new Set(deck.lastBatch.map(q => (q.q || '').slice(0, 40)));
-    const notLast  = pool.filter(q => !lastIds.has((q.q || '').slice(0, 40)));
-    const isLast   = pool.filter(q =>  lastIds.has((q.q || '').slice(0, 40)));
-    deck.queue     = [...shuffle(notLast), ...shuffle(isLast)];
-  }
+  // Mark as seen
+  picked.forEach(q => _seen[key].add(q.q));
 
-  // Pop n cards from the front
-  const picked = deck.queue.splice(0, n);
-  deck.lastBatch = picked;   // remember for next refill
   return picked;
+}
+
+
+// ── Answer Review Builder ────────────────────────────────────────────────────
+function buildAnswerReview(log) {
+  if (!log || !log.length) return '';
+  const items = log.map((entry, i) => {
+    if (!entry) return '';
+    const { q, chose, correct, isCorrect } = entry;
+    const cls  = isCorrect ? 'rv-correct' : 'rv-wrong';
+    const badge = isCorrect
+      ? '<span class="review-badge rv-badge-correct">✅ Correct</span>'
+      : '<span class="review-badge rv-badge-wrong">❌ Wrong</span>';
+    const yourAns  = chose   ? `<span style="color:#991b1b">Your answer: <b>${chose}</b></span>` : '';
+    const rightAns = !isCorrect ? `<span style="color:#065f46"> · Correct: <b>${correct}</b></span>` : '';
+    const exp = q.exp ? `<div style="margin-top:4px;font-size:12px;opacity:.8">💡 ${q.exp}</div>` : '';
+    return `
+      <div class="review-item ${cls}">
+        <div class="review-q">${badge} Q${i+1}. ${q.q}</div>
+        <div class="review-ans">${yourAns}${rightAns}${exp}</div>
+      </div>`;
+  }).join('');
+
+  const correct = log.filter(e=>e&&e.isCorrect).length;
+  const total   = log.filter(Boolean).length;
+
+  return `
+    <div class="review-section">
+      <div class="review-title" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+        <span>📋 View Answers (${correct}/${total} correct)</span>
+        <span style="font-size:18px">▾</span>
+      </div>
+      <div style="display:none">${items}</div>
+    </div>`;
 }
 
 function getEncouragement(correct) {
@@ -2033,6 +2455,8 @@ function downloadSampleCsv() {
 }
 
 function showPage(id) {
+  // Stop exam timer if navigating away
+  if (id !== 'page-exam' && examTimer) { clearInterval(examTimer); examTimer = null; }
   document.querySelectorAll('.hero, .page').forEach(el => el.style.display = 'none');
   const el = document.getElementById(id);
   if (el) el.style.display = 'block';
@@ -2050,6 +2474,7 @@ function showPage(id) {
   }
   if (id === 'page-daily')    injectClassBanner('page-daily');
   if (id === 'page-mock')     injectClassBanner('page-mock');
+  if (id === 'page-exam')     injectClassBanner('page-exam');
   if (id === 'page-csv') { renderCsvBanksList(); }
   window.scrollTo(0, 0);
 }

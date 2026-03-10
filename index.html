@@ -6,6 +6,7 @@
   <title>AI Study Buddy</title>
   <link rel="stylesheet" href="style.css" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Baloo+2:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
@@ -66,6 +67,16 @@
         <span class="feat-icon">🎓</span>
         <span class="feat-title">Mock Exam</span>
         <span class="feat-desc">Full exam simulation</span>
+      </button>
+      <button class="feat-card card-term"  onclick="startExam('term')">
+        <span class="feat-icon">📋</span>
+        <span class="feat-title">Term Exam</span>
+        <span class="feat-desc">50 marks · mixed paper</span>
+      </button>
+      <button class="feat-card card-annual" onclick="startExam('annual')">
+        <span class="feat-icon">🏅</span>
+        <span class="feat-title">Annual Exam</span>
+        <span class="feat-desc">80 marks · full paper</span>
       </button>
       <button class="feat-card card-prog"  onclick="showPage('page-progress')">
         <span class="feat-icon">📊</span>
@@ -330,6 +341,24 @@
     <div class="prog-actions">
       <button class="big-btn btn-red" onclick="resetProgress()">🗑️ Reset Progress</button>
     </div>
+  </section>
+
+
+  <!-- ===== TERM / ANNUAL EXAM ===== -->
+  <section class="page" id="page-exam" style="display:none;">
+    <div class="page-header">
+      <button class="back-btn" onclick="showPage('page-home')">&#8592; Back</button>
+      <h2 id="exam-page-title">&#x1F4CB; Term Exam</h2>
+      <p id="exam-page-sub">Complete the paper honestly &#x270D;&#xFE0F;</p>
+    </div>
+    <div id="exam-header-banner"></div>
+    <div id="exam-timer-bar" class="exam-timer-bar" style="display:none;">
+      <span>&#x23F1; Time Remaining:</span>
+      <span id="exam-timer-display">--:--</span>
+      <span id="exam-timer-warning" style="display:none;">&#x26A0;&#xFE0F; Less than 5 mins!</span>
+    </div>
+    <div id="exam-content"></div>
+    <div id="exam-result" style="display:none;"></div>
   </section>
 
   <!-- ===== TOAST ===== -->

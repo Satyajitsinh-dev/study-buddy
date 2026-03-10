@@ -906,3 +906,122 @@ body {
   }
 }
 
+/* ===================== EXAM FEATURE CARDS ===================== */
+.card-term   { background: linear-gradient(135deg,#8b5cf6,#6d28d9); }
+.card-annual { background: linear-gradient(135deg,#0f766e,#0369a1); }
+
+/* ===================== EXAM PAGE ===================== */
+.exam-timer-bar {
+  display:flex; align-items:center; gap:10px;
+  background:#1e1b4b; color:#fff; border-radius:12px;
+  padding:10px 18px; margin-bottom:16px; font-weight:800; font-size:15px;
+}
+#exam-timer-display { font-size:22px; font-family:'Baloo 2',cursive; color:#fbbf24; }
+#exam-timer-warning { color:#f87171; font-size:13px; }
+
+.exam-info-banner {
+  background:linear-gradient(90deg,#eef2ff,#ede9fe);
+  border:1.5px solid #c7d2fe; border-radius:14px;
+  padding:14px 18px; margin-bottom:18px;
+  display:flex; flex-wrap:wrap; gap:12px; align-items:center;
+}
+.exam-info-pill {
+  background:#fff; border:1.5px solid #e0e7ff;
+  border-radius:20px; padding:4px 14px;
+  font-size:13px; font-weight:800; color:var(--clr-primary);
+}
+.exam-section {
+  background:var(--clr-card); border-radius:var(--radius);
+  padding:22px; margin-bottom:18px; box-shadow:var(--shadow);
+}
+.exam-section-title {
+  font-family:'Baloo 2',cursive; font-size:17px; font-weight:800;
+  color:var(--clr-primary); margin-bottom:16px;
+  border-bottom:2px solid #e0e7ff; padding-bottom:8px;
+}
+.exam-q-block { margin-bottom:18px; }
+.exam-q-num {
+  font-size:13px; font-weight:800; color:var(--clr-muted);
+  margin-bottom:6px; display:flex; gap:8px; align-items:center;
+}
+.exam-q-marks {
+  background:#e0e7ff; color:var(--clr-primary);
+  border-radius:20px; padding:1px 9px; font-size:11px; font-weight:800;
+}
+.exam-q-text {
+  font-size:15px; font-weight:700; line-height:1.5; margin-bottom:10px;
+}
+.exam-opt-list { display:flex; flex-direction:column; gap:6px; }
+.exam-opt {
+  display:flex; align-items:center; gap:10px;
+  background:#f8f9ff; border-radius:10px; padding:9px 14px;
+  cursor:pointer; font-size:14px; font-weight:700;
+  border:2px solid transparent; transition:all .15s;
+}
+.exam-opt input[type=radio] { width:16px; height:16px; accent-color:var(--clr-primary); flex-shrink:0; }
+.exam-opt:hover { border-color:var(--clr-primary); background:#e0e7ff; }
+.exam-opt.selected { border-color:var(--clr-primary); background:#e0e7ff; }
+.exam-textarea {
+  width:100%; border:2px solid #e0e7ff; border-radius:12px;
+  padding:12px; font-size:14px; font-family:'Nunito',sans-serif;
+  resize:vertical; outline:none; margin-top:6px;
+  transition:border .2s; box-sizing:border-box;
+}
+.exam-textarea:focus { border-color:var(--clr-primary); }
+.exam-submit-row { text-align:center; padding:10px 0 20px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+.exam-pdf-btn {
+  background:linear-gradient(135deg,#ef4444,#f97316); color:#fff;
+  border:none; border-radius:14px; padding:12px 22px;
+  font-size:15px; font-weight:800; cursor:pointer;
+  font-family:'Nunito',sans-serif; transition:transform .15s;
+  display:flex; align-items:center; gap:7px;
+}
+.exam-pdf-btn:hover { transform:translateY(-2px); }
+
+/* ===================== ANSWER REVIEW ===================== */
+.review-section {
+  background:var(--clr-card); border-radius:var(--radius);
+  padding:20px; margin-top:20px; box-shadow:var(--shadow);
+}
+.review-title {
+  font-family:'Baloo 2',cursive; font-size:18px; font-weight:800;
+  color:var(--clr-primary); margin-bottom:14px; cursor:pointer;
+  display:flex; justify-content:space-between; align-items:center;
+}
+.review-item {
+  border-radius:12px; padding:14px 16px; margin-bottom:10px;
+  border:2px solid transparent; font-size:14px; line-height:1.5;
+}
+.review-item.rv-correct { background:#d1fae5; border-color:#10b981; }
+.review-item.rv-wrong   { background:#fee2e2; border-color:#ef4444; }
+.review-item.rv-skipped { background:#f3f4f6; border-color:#d1d5db; }
+.review-q   { font-weight:800; margin-bottom:6px; }
+.review-ans { font-size:13px; margin-top:4px; }
+.review-badge {
+  display:inline-block; border-radius:20px; padding:2px 10px;
+  font-size:11px; font-weight:800; margin-right:6px;
+}
+.rv-badge-correct { background:#10b981; color:#fff; }
+.rv-badge-wrong   { background:#ef4444; color:#fff; }
+.rv-badge-skipped { background:#6b7280; color:#fff; }
+
+/* ===================== EXAM RESULT ===================== */
+.exam-result-breakdown {
+  background:#f8f9ff; border-radius:12px;
+  padding:14px 18px; margin:12px 0; text-align:left;
+  font-size:14px; line-height:1.8;
+}
+.exam-result-breakdown b { color:var(--clr-primary); }
+
+@media (max-width:640px) {
+  .exam-section { padding:14px; }
+  .exam-section-title { font-size:14px; }
+  .exam-q-text { font-size:14px; }
+  .exam-opt { font-size:13px; padding:8px 10px; }
+  .exam-submit-row { flex-direction:column; align-items:stretch; }
+  .exam-pdf-btn { justify-content:center; }
+  .exam-timer-bar { padding:8px 12px; }
+  #exam-timer-display { font-size:18px; }
+  .review-item { padding:10px 12px; font-size:13px; }
+}
+
