@@ -32,6 +32,7 @@ body {
   color: var(--clr-text);
   min-height: 100vh;
   overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent; /* removes grey flash on mobile tap */
 }
 
 /* ===================== TOP BAR ===================== */
@@ -570,12 +571,13 @@ body {
   border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 800;
 }
 
+.toast {
   position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(80px);
   background: #1e1b4b; color: #fff;
   padding: 12px 28px; border-radius: 30px; font-size: 15px; font-weight: 700;
   box-shadow: 0 4px 20px rgba(0,0,0,.25); z-index: 999;
   transition: transform .3s ease, opacity .3s;
-  opacity: 0; pointer-events: none;
+  opacity: 0; pointer-events: none; white-space: nowrap;
 }
 .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 
@@ -669,113 +671,95 @@ body {
 .meta-type { background: #f3f4f6; color: #374151; border-color: #d1d5db; }
 
 
-@media (max-width: 600px) {
-  .topbar { padding: 10px 14px; }
-  .logo-text { font-size: 16px; }
-  .hero { padding: 24px 12px 20px; }
-  .hero-mascot { font-size: 56px; }
-  .hero-stats-row { gap: 8px; }
-  .hstat { padding: 10px 14px; }
-  .feature-grid { grid-template-columns: 1fr 1fr; }
-  .feat-card { padding: 18px 10px; }
-  .feat-icon { font-size: 32px; }
-  .feat-title { font-size: 14px; }
-  .chapter-grid { grid-template-columns: 1fr 1fr; }
-  .progress-grid { grid-template-columns: 1fr 1fr; }
-  .big-btn { padding: 12px 20px; font-size: 15px; }
-  .question-card { font-size: 16px; padding: 18px; }
-  .option-btn { font-size: 14px; padding: 12px 14px; }
-}
-
-/* Scroll bar styling */
-.chat-box::-webkit-scrollbar { width: 6px; }
+/* Scrollbar styling */
+.chat-box::-webkit-scrollbar { width: 5px; }
 .chat-box::-webkit-scrollbar-track { background: transparent; }
 .chat-box::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 3px; }
 
-/* Animations */
-@keyframes fadeIn { from { opacity:0; transform:translateY(16px);} to { opacity:1; transform:none; } }
+/* Page enter animation */
+@keyframes fadeIn { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }
 .page { animation: fadeIn .3s ease; }
 
 /* ===================== CLASS SELECTOR PAGE ===================== */
 #page-class-select {
-  min-height: 100vh;
   display: flex !important;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 24px 16px;
+  padding: 24px 16px 40px;
   background: linear-gradient(135deg, #f0f4ff 0%, #ede9fe 100%);
+  min-height: calc(100vh - 56px); /* account for topbar */
 }
 .class-select-wrap {
-  max-width: 680px; width: 100%;
+  max-width: 520px; width: 100%;
   text-align: center;
-  animation: fadeIn .4s ease;
+  animation: fadeIn .3s ease;
+  padding-top: 20px;
 }
-.class-select-mascot { font-size: 72px; margin-bottom: 12px; line-height: 1; }
+.class-select-mascot { font-size: 40px; margin-bottom: 4px; line-height: 1; }
 .class-select-title {
   font-family: 'Baloo 2', sans-serif;
-  font-size: 32px; font-weight: 800;
-  color: var(--clr-primary); margin-bottom: 8px;
+  font-size: 20px; font-weight: 800;
+  color: var(--clr-primary); margin-bottom: 4px;
 }
 .class-select-sub {
-  font-size: 16px; color: var(--clr-muted);
-  margin-bottom: 32px; line-height: 1.6;
+  font-size: 13px; color: var(--clr-muted);
+  margin-bottom: 18px; line-height: 1.4;
 }
 .class-select-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 16px; margin-bottom: 28px;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 10px; margin-bottom: 14px;
 }
 .class-card {
   background: white;
   border: 2px solid #e0e7ff;
-  border-radius: 20px;
-  padding: 24px 12px 20px;
+  border-radius: 14px;
+  padding: 12px 6px 10px;
   cursor: pointer;
-  transition: all .2s;
+  transition: all .15s;
   display: flex; flex-direction: column;
-  align-items: center; gap: 8px;
-  box-shadow: 0 2px 12px rgba(79,70,229,.08);
+  align-items: center; gap: 3px;
+  box-shadow: 0 2px 6px rgba(79,70,229,.06);
   position: relative;
 }
 .class-card:hover {
   border-color: var(--clr-primary);
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(79,70,229,.18);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 14px rgba(79,70,229,.15);
 }
+.class-card:active { transform: scale(.97); }
 .class-card.active-class {
   border-color: var(--clr-primary);
   background: linear-gradient(135deg, #eef2ff, #ede9fe);
-  box-shadow: 0 6px 24px rgba(79,70,229,.22);
 }
 .class-card-num {
   font-family: 'Baloo 2', sans-serif;
-  font-size: 36px; font-weight: 800;
+  font-size: 24px; font-weight: 800;
   color: var(--clr-primary); line-height: 1;
 }
 .class-card-label {
-  font-size: 13px; font-weight: 700;
-  color: var(--clr-muted); text-transform: uppercase; letter-spacing: .5px;
+  font-size: 10px; font-weight: 700;
+  color: var(--clr-muted); text-transform: uppercase; letter-spacing: .3px;
 }
 .class-card-count {
-  font-size: 11px; color: #a5b4fc;
+  font-size: 9px; color: #a5b4fc;
   background: #eef2ff; border-radius: 20px;
-  padding: 2px 8px;
+  padding: 1px 6px;
 }
 .class-card-active-badge {
-  position: absolute; top: -8px; right: -8px;
+  position: absolute; top: -6px; right: -6px;
   background: var(--clr-green); color: white;
-  border-radius: 50%; width: 22px; height: 22px;
-  font-size: 12px; display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 2px 6px rgba(16,185,129,.4);
+  border-radius: 50%; width: 16px; height: 16px;
+  font-size: 9px; display: flex; align-items: center; justify-content: center;
 }
 .class-select-hint {
-  font-size: 13px; color: var(--clr-muted);
+  font-size: 12px; color: var(--clr-muted);
   display: flex; flex-wrap: wrap; align-items: center;
-  justify-content: center; gap: 4px;
+  justify-content: center; gap: 3px;
 }
 .link-btn {
   background: none; border: none; color: var(--clr-primary);
-  font-size: 13px; font-weight: 700; cursor: pointer;
+  font-size: 12px; font-weight: 700; cursor: pointer;
   text-decoration: underline; padding: 0;
 }
 .link-btn:hover { color: var(--clr-secondary); }
@@ -785,7 +769,7 @@ body {
   background: rgba(255,255,255,.15);
   border: 1.5px solid rgba(255,255,255,.35);
   color: white; border-radius: 20px;
-  padding: 5px 12px; font-size: 12px; font-weight: 700;
+  padding: 4px 10px; font-size: 11px; font-weight: 700;
   cursor: pointer; transition: all .2s;
   font-family: 'Nunito', sans-serif;
   white-space: nowrap;
@@ -799,27 +783,190 @@ body {
 .active-class-banner {
   background: linear-gradient(90deg, #eef2ff, #ede9fe);
   border: 1.5px solid #c7d2fe;
-  border-radius: 14px; padding: 10px 16px;
-  display: flex; align-items: center; gap: 10px;
+  border-radius: 12px; padding: 8px 14px;
+  display: flex; align-items: center; gap: 8px;
   font-size: 13px; font-weight: 700; color: var(--clr-primary);
-  margin-bottom: 16px; flex-wrap: wrap;
+  margin-bottom: 14px; flex-wrap: wrap;
 }
 .active-class-banner .acb-tag {
   background: var(--clr-primary); color: white;
-  border-radius: 20px; padding: 3px 12px;
-  font-size: 13px;
+  border-radius: 20px; padding: 2px 10px;
+  font-size: 12px;
 }
 .active-class-banner .acb-change {
   margin-left: auto; background: none; border: 1.5px solid var(--clr-primary);
   color: var(--clr-primary); border-radius: 20px;
-  padding: 3px 10px; font-size: 12px; font-weight: 700;
+  padding: 2px 10px; font-size: 11px; font-weight: 700;
   cursor: pointer; font-family: 'Nunito', sans-serif;
+  white-space: nowrap;
 }
 .active-class-banner .acb-change:hover { background: var(--clr-primary); color: white; }
 
-@media (max-width: 480px) {
-  .class-select-title { font-size: 24px; }
-  .class-select-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  .class-card-num { font-size: 28px; }
-  .class-switch-btn { font-size: 11px; padding: 4px 8px; }
+/* =====================================================================
+   RESPONSIVE / MOBILE  (≤ 640px)
+   ===================================================================== */
+@media (max-width: 640px) {
+
+  /* --- Top bar --- */
+  .topbar { padding: 8px 10px; gap: 4px; }
+  .topbar-left { gap: 5px; min-width: 0; flex: 1; overflow: hidden; }
+  .topbar-right { gap: 4px; flex-shrink: 0; }
+  .logo-emoji { font-size: 20px; flex-shrink: 0; }
+  .logo-text { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .logo-badge { display: none; } /* hidden on mobile — class shown in switch btn */
+  .score-pill { display: none; } /* hide score on small screens to save space */
+  .streak-pill { font-size: 11px; padding: 3px 8px; }
+  .class-switch-btn { font-size: 10px; padding: 3px 8px; }
+
+  /* --- Class selector --- */
+  #page-class-select { padding: 12px 12px 24px; align-items: flex-start; }
+  .class-select-wrap { padding-top: 8px; }
+  .class-select-mascot { font-size: 32px; margin-bottom: 2px; }
+  .class-select-title { font-size: 17px; }
+  .class-select-sub { font-size: 11px; margin-bottom: 12px; }
+  .class-select-grid { grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+  .class-card { padding: 10px 4px 8px; border-radius: 10px; gap: 2px; }
+  .class-card-num { font-size: 20px; }
+  .class-card-label { font-size: 8px; }
+  .class-card-count { font-size: 8px; padding: 1px 5px; }
+
+  /* --- Hero --- */
+  .hero { padding: 18px 12px 14px; }
+  .hero-mascot { font-size: 44px; margin-bottom: 4px; }
+  .hero-title { font-size: 20px; }
+  .hero-sub { font-size: 13px; margin: 6px 0 12px; }
+  .hero-stats-row { gap: 6px; margin-bottom: 16px; }
+  .hstat { padding: 8px 10px; }
+  .hstat span { font-size: 18px; }
+  .hstat small { font-size: 9px; }
+
+  /* --- Feature grid --- */
+  .feature-grid { grid-template-columns: 1fr 1fr; gap: 8px; padding: 0; }
+  .feat-card { padding: 14px 8px; gap: 4px; border-radius: 12px; }
+  .feat-icon { font-size: 26px; }
+  .feat-title { font-size: 12px; }
+  .feat-desc { font-size: 10px; }
+
+  /* --- Page container --- */
+  .page { padding: 12px 10px 48px; }
+  .page-header { margin-bottom: 14px; }
+  .page-header h2 { font-size: 19px; }
+  .page-header p { font-size: 12px; }
+  .back-btn { font-size: 12px; padding: 5px 10px; margin-bottom: 8px; }
+
+  /* --- Active class banner --- */
+  .active-class-banner { padding: 6px 10px; font-size: 11px; gap: 5px; border-radius: 9px; margin-bottom: 10px; }
+  .active-class-banner .acb-tag { font-size: 10px; padding: 1px 8px; }
+  .active-class-banner .acb-change { font-size: 10px; padding: 2px 8px; }
+
+  /* --- Subject tabs (scrollable on mobile) --- */
+  .subject-tabs {
+    flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start;
+    gap: 6px; margin-bottom: 12px; padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .subject-tabs::-webkit-scrollbar { display: none; }
+  .stab { padding: 6px 14px; font-size: 13px; border-radius: 20px; flex-shrink: 0; }
+
+  /* --- Chapter grid --- */
+  .chapter-grid { grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 12px; }
+  .chap-btn { padding: 11px 8px; font-size: 12px; border-radius: 10px; }
+
+  /* --- Quiz filters --- */
+  .quiz-filters { padding: 10px; }
+  .filter-row { gap: 7px; }
+  .filter-group { width: calc(50% - 4px); }
+  .quiz-count-sel { font-size: 12px; padding: 4px 4px; width: 100%; }
+  .filter-badge-ok, .filter-badge-zero { padding: 5px 10px; font-size: 11px; }
+  .diff-pill { font-size: 10px; padding: 1px 7px; }
+
+  /* --- Quiz start row --- */
+  .quiz-count-row { font-size: 13px; margin: 8px 0 12px; }
+  .big-btn { padding: 12px 16px; font-size: 15px; width: 100%; }
+
+  /* --- Question card --- */
+  .question-card { padding: 14px; font-size: 15px; margin-bottom: 10px; border-radius: 14px; }
+  .q-text { font-size: 15px; line-height: 1.45; }
+  .q-meta-row { gap: 4px; margin-bottom: 6px; }
+  .q-meta-pill { font-size: 9px; padding: 2px 6px; border-radius: 6px; }
+
+  /* --- Options --- */
+  .options-grid { gap: 7px; }
+  .option-btn { padding: 11px 10px; font-size: 13px; border-radius: 10px; gap: 8px; }
+  .option-btn .opt-label { padding: 1px 7px; font-size: 11px; border-radius: 6px; }
+
+  /* --- Quiz feedback --- */
+  .quiz-feedback { padding: 10px 12px; font-size: 13px; border-radius: 10px; }
+  .fb-result { font-size: 14px; margin-bottom: 6px; }
+  .fb-exp { font-size: 12px; }
+  .fb-meta { font-size: 11px; }
+
+  /* --- Result card --- */
+  .result-card { padding: 18px 14px; border-radius: 14px; }
+  .result-emoji { font-size: 44px; }
+  .result-title { font-size: 20px; }
+  .result-score { font-size: 34px; }
+  .result-msg { font-size: 13px; margin-bottom: 16px; }
+  .result-actions { flex-direction: column; align-items: stretch; gap: 8px; }
+  .result-actions .big-btn { width: 100%; }
+
+  /* --- AI Tutor --- */
+  .chat-box { min-height: 220px; max-height: 300px; padding: 12px; gap: 8px; }
+  .chat-avatar { font-size: 20px; }
+  .chat-bubble { font-size: 13px; padding: 9px 11px; max-width: 90%; border-radius: 12px; }
+  .quick-topics { padding: 8px 10px; gap: 5px; }
+  .quick-topics span { font-size: 11px; width: 100%; }
+  .quick-topics button { font-size: 11px; padding: 4px 10px; }
+  .tutor-input-row { padding: 8px 10px; gap: 6px; }
+  .tutor-input-row input { font-size: 14px; padding: 9px 12px; }
+  .send-btn { font-size: 13px; padding: 9px 14px; }
+
+  /* --- API key banner --- */
+  .api-banner { flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; }
+  .api-banner-icon { font-size: 22px; padding-top: 0; }
+  .api-banner-body { font-size: 13px; }
+  .provider-tabs { gap: 5px; }
+  .provider-tab { font-size: 12px; padding: 5px 11px; }
+  .api-key-row { flex-direction: column; gap: 6px; }
+  .api-key-row input { width: 100%; }
+  .key-saved-row { font-size: 12px; }
+
+  /* --- Progress page --- */
+  .progress-grid { grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .prog-card { padding: 14px 8px; border-radius: 14px; }
+  .prog-big { font-size: 28px; }
+  .prog-label { font-size: 10px; }
+  .prog-emoji { font-size: 20px; }
+  .subject-breakdown, .achievements-section { padding: 14px; border-radius: 14px; }
+  .achievements-grid { gap: 7px; }
+  .achievement { padding: 8px 10px; font-size: 11px; border-radius: 10px; }
+  .achievement-icon { font-size: 18px; }
+
+  /* --- Mock exam --- */
+  .mock-section { padding: 14px; border-radius: 14px; }
+  .mock-section h3 { font-size: 17px; margin-bottom: 12px; }
+  .mock-q-text { font-size: 14px; }
+  .mock-opt { font-size: 13px; padding: 8px 10px; border-radius: 8px; }
+  .mock-short-item textarea, .mock-long-item textarea { font-size: 13px; padding: 9px; }
+
+  /* --- CSV manager --- */
+  .csv-drop-zone { padding: 20px 14px; margin: 10px; border-radius: 12px; }
+  .csv-drop-icon { font-size: 32px; }
+  .csv-drop-title { font-size: 14px; }
+  .csv-drop-sub { font-size: 11px; }
+  .csv-format-box { padding: 12px 14px; }
+  .csv-format-title { font-size: 13px; }
+  .csv-bank-item { padding: 10px 10px; gap: 6px; border-radius: 10px; }
+  .csv-bank-name { font-size: 13px; }
+  .csv-bank-meta { font-size: 10px; gap: 5px; }
+  .csv-bank-actions { width: 100%; justify-content: flex-end; margin-top: 4px; }
+  .csv-preview-actions { flex-direction: column; }
+  .csv-name-input { width: 100%; }
+
+  /* --- Toast --- */
+  .toast {
+    font-size: 12px; padding: 9px 16px;
+    bottom: 12px; max-width: 90%; white-space: normal; text-align: center;
+  }
 }
+
