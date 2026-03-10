@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Study Buddy – Class 7 CBSE</title>
+  <title>AI Study Buddy</title>
   <link rel="stylesheet" href="style.css" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Baloo+2:wght@400;600;700;800&display=swap" rel="stylesheet" />
 </head>
@@ -14,22 +14,38 @@
     <div class="topbar-left">
       <span class="logo-emoji">🤖</span>
       <span class="logo-text">AI Study Buddy</span>
-      <span class="logo-badge">Class 7 CBSE</span>
+      <span class="logo-badge" id="nav-class-badge">Select Class</span>
     </div>
     <div class="topbar-right">
+      <button class="class-switch-btn" id="class-switch-btn" onclick="showClassSelector()" title="Switch Class" style="display:none">🎓 Switch Class</button>
       <span class="score-pill">⭐ Score: <span id="nav-score">0</span></span>
       <span class="streak-pill">🔥 <span id="nav-streak">0</span> streak</span>
     </div>
   </header>
 
+  <!-- ===== CLASS SELECTOR (shown on first load / switch) ===== -->
+  <section class="page" id="page-class-select" style="display:none;">
+    <div class="class-select-wrap">
+      <div class="class-select-mascot">🤖</div>
+      <h1 class="class-select-title">Welcome to AI Study Buddy!</h1>
+      <p class="class-select-sub">Select your class to get started. All questions, subjects and the AI tutor will be tailored to your class! 🚀</p>
+      <div id="class-select-grid" class="class-select-grid"></div>
+      <div class="class-select-hint">
+        <span>📂 Don't see your class?</span>
+        <button class="link-btn" onclick="showPage('page-csv')">Upload your own question bank</button>
+        <span>— your class will appear here automatically!</span>
+      </div>
+    </div>
+  </section>
+
   <!-- ===== HERO / HOME ===== -->
-  <section class="hero" id="page-home">
+  <section class="hero" id="page-home" style="display:none;">
     <div class="hero-blob blob1"></div>
     <div class="hero-blob blob2"></div>
     <div class="hero-content">
       <div class="hero-mascot">🤖</div>
       <h1 class="hero-title">Hey there, Scholar! 👋</h1>
-      <p class="hero-sub">Your fun AI-powered study partner for Class 7 CBSE.<br>Let's learn, practice and ace those exams! 🚀</p>
+      <p class="hero-sub" id="hero-sub-text">Your fun AI-powered study partner.<br>Let's learn, practice and ace those exams! 🚀</p>
       <div class="hero-stats-row">
         <div class="hstat"><span id="hs-attempts">0</span><small>Attempts</small></div>
         <div class="hstat"><span id="hs-correct">0</span><small>Correct</small></div>
@@ -77,7 +93,7 @@
     <div class="page-header">
       <button class="back-btn" onclick="showPage('page-home')">← Back</button>
       <h2>💬 Ask AI Tutor</h2>
-      <p>Choose Claude 🟣, ChatGPT 🟢 or Gemini 🔵 — ask anything about Class 7!</p>
+      <p id="tutor-page-sub">Choose Claude 🟣, ChatGPT 🟢 or Gemini 🔵 — ask anything!</p>
       <div id="key-badge-row" style="margin-top:8px"></div>
     </div>
 
@@ -85,15 +101,10 @@
       <div class="chat-box" id="chat-box">
         <div class="chat-msg bot">
           <span class="chat-avatar">🤖</span>
-          <div class="chat-bubble">
+          <div class="chat-bubble" id="tutor-welcome-bubble">
             Hi there, Scholar! 👋 I'm your AI Study Buddy!<br><br>
             I can be powered by <b>🟣 Claude</b>, <b>🟢 ChatGPT</b>, or <b>🔵 Gemini</b> — pick your favourite above! 🌟<br><br>
-            Ask me <b>anything</b> about your Class 7 CBSE subjects and I'll explain it in simple, fun language!<br><br>
-            <b>Try asking:</b><br>
-            • "What is photosynthesis and why is it important?"<br>
-            • "Explain integers with examples"<br>
-            • "Who was Akbar and what made him great?"<br>
-            • "What is the difference between a noun and a pronoun?"
+            Ask me <b>anything</b> about your subjects and I'll explain it in simple, fun language! 📚
           </div>
         </div>
       </div>
@@ -144,7 +155,7 @@
               <option value="Hard">🔴 Hard</option>
             </select>
           </div>
-          <div class="filter-group">
+          <div class="filter-group" id="filter-class-group">
             <label class="filter-label">🎓 Class</label>
             <select id="filter-class" class="quiz-count-sel">
               <option value="">All Classes</option>

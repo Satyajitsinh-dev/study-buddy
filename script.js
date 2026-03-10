@@ -1,10 +1,128 @@
 /* =====================================================
-   AI Study Buddy – Class 7 CBSE
+   AI Study Buddy – Multi-Class Edition
    script.js – All app logic, question banks, AI tutor
    ===================================================== */
 
 // =====================================================
-// SECTION 1: DATA – CBSE Class 7 Chapters
+// SECTION 0: CLASS STATE MANAGEMENT
+// =====================================================
+
+const CLASS_STORE_KEY = 'studyBuddy_activeClass';
+
+function getActiveClass() {
+  return localStorage.getItem(CLASS_STORE_KEY) || null;
+}
+
+function setActiveClass(cls) {
+  localStorage.setItem(CLASS_STORE_KEY, String(cls));
+  updateClassUI();
+}
+
+// Returns all classes available across built-in + CSV banks
+function getAllAvailableClasses() {
+  const all = [...QUESTION_BANK, ...loadAllCsvBanks().flatMap(b => b.questions)];
+  const classes = [...new Set(all.map(q => q.classLevel).filter(Boolean))];
+  // Sort numerically then alphabetically
+  return classes.sort((a, b) => {
+    const na = parseFloat(a), nb = parseFloat(b);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return String(a).localeCompare(String(b));
+  });
+}
+
+// Wraps getAllQuestions() with active class filter
+function getClassFilteredQuestions() {
+  const cls = getActiveClass();
+  const all = getAllQuestions();
+  if (!cls) return all;
+  return all.filter(q => !q.classLevel || q.classLevel === String(cls));
+}
+
+// Update all dynamic UI text that references the active class
+function updateClassUI() {
+  const cls = getActiveClass();
+  const label = cls ? `Class ${cls}` : 'All Classes';
+  const badge = document.getElementById('nav-class-badge');
+  if (badge) badge.textContent = label;
+  const switchBtn = document.getElementById('class-switch-btn');
+  if (switchBtn) switchBtn.style.display = cls ? 'inline-block' : 'none';
+  const heroSub = document.getElementById('hero-sub-text');
+  if (heroSub) heroSub.innerHTML = `Your fun AI-powered study partner${cls ? ` for <b>Class ${cls}</b>` : ''}.<br>Let's learn, practice and ace those exams! 🚀`;
+  const tutorSub = document.getElementById('tutor-page-sub');
+  if (tutorSub) tutorSub.textContent = `Choose Claude 🟣, ChatGPT 🟢 or Gemini 🔵 — ask anything${cls ? ` about Class ${cls}` : ''}!`;
+}
+
+// Show the class selector screen
+function showClassSelector(fromNav = false) {
+  document.querySelectorAll('.hero, .page').forEach(el => el.style.display = 'none');
+  const pg = document.getElementById('page-class-select');
+  if (pg) pg.style.display = 'flex';
+  renderClassSelectorGrid(fromNav);
+  window.scrollTo(0, 0);
+}
+
+function renderClassSelectorGrid(showAllOption = false) {
+  const grid = document.getElementById('class-select-grid');
+  if (!grid) return;
+  const classes = getAllAvailableClasses();
+  const active  = getActiveClass();
+
+  // Count questions per class
+  const all = getAllQuestions();
+  const countByClass = {};
+  all.forEach(q => {
+    const c = q.classLevel || 'General';
+    countByClass[c] = (countByClass[c] || 0) + 1;
+  });
+
+  const classEmojis = { '1':'🌱','2':'🌿','3':'🌳','4':'🌸','5':'⭐','6':'🚀','7':'🎯','8':'🏆','9':'💡','10':'🎓','11':'🔬','12':'🎪' };
+
+  let html = '';
+
+  if (showAllOption) {
+    html += `<div class="class-card ${!active ? 'active-class' : ''}" onclick="selectClass(null)">
+      <div class="class-card-num">🌈</div>
+      <div class="class-card-label">All Classes</div>
+      <div class="class-card-count">${all.length} Qs</div>
+      ${!active ? '<div class="class-card-active-badge">✓</div>' : ''}
+    </div>`;
+  }
+
+  if (classes.length === 0) {
+    html += `<div style="grid-column:1/-1;text-align:center;color:var(--clr-muted);padding:20px;">
+      No built-in classes found. Upload a CSV question bank to get started! 📂
+    </div>`;
+  } else {
+    classes.forEach(cls => {
+      const count = countByClass[cls] || 0;
+      const emoji = classEmojis[String(cls)] || '📚';
+      const isActive = String(active) === String(cls);
+      html += `<div class="class-card ${isActive ? 'active-class' : ''}" onclick="selectClass('${cls}')">
+        <div class="class-card-num">${emoji}</div>
+        <div class="class-card-label">Class ${cls}</div>
+        <div class="class-card-count">${count} Questions</div>
+        ${isActive ? '<div class="class-card-active-badge">✓</div>' : ''}
+      </div>`;
+    });
+  }
+  grid.innerHTML = html;
+}
+
+function selectClass(cls) {
+  if (cls !== null) setActiveClass(cls);
+  else {
+    localStorage.removeItem(CLASS_STORE_KEY);
+    updateClassUI();
+  }
+  // Reset quiz state so it reloads with new class filter
+  selectedSubject = null;
+  selectedChapter = null;
+  dailySubjectFilter = '__all__';
+  showPage('page-home');
+}
+
+// =====================================================
+// SECTION 1: DATA – Multi-Class Question Bank
 // =====================================================
 
 const CHAPTERS = {
@@ -64,92 +182,213 @@ const CHAPTERS = {
 // SECTION 2: QUESTION BANK
 // =====================================================
 
-/* Each question: { q, opts:[A,B,C,D], ans:0-3, exp, subject, chapter } */
+/* Each question: { q, opts:[A,B,C,D], ans:0-3, exp, subject, chapter, topic, difficulty, classLevel }
+   NOTE: opts are shuffled at render time — ans stores the CORRECT ANSWER TEXT, not an index */
 
 const QUESTION_BANK = [
 
-  // ---- MATH ----
-  { q:"What is (-5) + (-3)?", opts:["-8","8","-2","2"], ans:0, exp:"Negative + Negative = More Negative. (-5)+(-3) = -8 🎯", subject:"Math", chapter:"Integers" },
-  { q:"What is (-7) × (-3)?", opts:["21","-21","10","-10"], ans:0, exp:"Negative × Negative = Positive! (-7)×(-3) = 21 🌟", subject:"Math", chapter:"Integers" },
-  { q:"What is (-12) ÷ 4?", opts:["-3","3","-8","8"], ans:0, exp:"Negative ÷ Positive = Negative. (-12)÷4 = -3 👍", subject:"Math", chapter:"Integers" },
-  { q:"Which integer is greater: -5 or -2?", opts:["-2","-5","Both equal","Cannot say"], ans:0, exp:"On the number line, -2 is to the right of -5, so -2 is greater! 📏", subject:"Math", chapter:"Integers" },
-  { q:"What is the additive inverse of 8?", opts:["-8","8","0","1"], ans:0, exp:"Additive inverse of a number n is -n. So additive inverse of 8 is -8 ✅", subject:"Math", chapter:"Integers" },
+  // ---- MATH: Integers ----
+  { q:"What is (-5) + (-3)?", opts:["-8","8","-2","2"], ans:"-8", exp:"Negative + Negative = More Negative. (-5)+(-3) = -8 🎯", subject:"Math", chapter:"Integers", topic:"Addition of Integers", difficulty:"Easy", classLevel:"7" },
+  { q:"What is (-7) × (-3)?", opts:["21","-21","10","-10"], ans:"21", exp:"Negative × Negative = Positive! (-7)×(-3) = 21 🌟", subject:"Math", chapter:"Integers", topic:"Multiplication of Integers", difficulty:"Easy", classLevel:"7" },
+  { q:"What is (-12) ÷ 4?", opts:["-3","3","-8","8"], ans:"-3", exp:"Negative ÷ Positive = Negative. (-12)÷4 = -3 👍", subject:"Math", chapter:"Integers", topic:"Division of Integers", difficulty:"Easy", classLevel:"7" },
+  { q:"Which integer is greater: -5 or -2?", opts:["-2","-5","Both equal","Cannot say"], ans:"-2", exp:"On the number line, -2 is to the right of -5, so -2 is greater! 📏", subject:"Math", chapter:"Integers", topic:"Comparing Integers", difficulty:"Easy", classLevel:"7" },
+  { q:"What is the additive inverse of 8?", opts:["-8","8","0","1"], ans:"-8", exp:"Additive inverse of a number n is -n. So additive inverse of 8 is -8 ✅", subject:"Math", chapter:"Integers", topic:"Properties of Integers", difficulty:"Medium", classLevel:"7" },
 
-  { q:"What is 2/5 + 1/5?", opts:["3/5","3/10","1/5","2/5"], ans:0, exp:"Same denominator? Just add numerators! 2/5 + 1/5 = 3/5 🍕", subject:"Math", chapter:"Fractions and Decimals" },
-  { q:"0.1 × 0.1 = ?", opts:["0.01","0.1","1","0.001"], ans:0, exp:"0.1 × 0.1 = 0.01 (count decimal places: 1+1=2 places) 🧮", subject:"Math", chapter:"Fractions and Decimals" },
-  { q:"Which fraction is bigger: 3/4 or 2/3?", opts:["3/4","2/3","Both equal","Cannot say"], ans:0, exp:"Convert to same denominator: 9/12 vs 8/12. So 3/4 is bigger! 🏆", subject:"Math", chapter:"Fractions and Decimals" },
-  { q:"2.5 ÷ 0.5 = ?", opts:["5","25","0.5","50"], ans:0, exp:"2.5 ÷ 0.5 = 25/5 = 5. Multiply both by 10 to remove decimal! 💡", subject:"Math", chapter:"Fractions and Decimals" },
-  { q:"What is 3/4 of 20?", opts:["15","12","10","8"], ans:0, exp:"3/4 of 20 = (3×20)/4 = 60/4 = 15 🌟", subject:"Math", chapter:"Fractions and Decimals" },
+  // ---- MATH: Fractions and Decimals ----
+  { q:"What is 2/5 + 1/5?", opts:["3/5","3/10","1/5","2/5"], ans:"3/5", exp:"Same denominator? Just add numerators! 2/5 + 1/5 = 3/5 🍕", subject:"Math", chapter:"Fractions and Decimals", topic:"Addition of Fractions", difficulty:"Easy", classLevel:"7" },
+  { q:"0.1 × 0.1 = ?", opts:["0.01","0.1","1","0.001"], ans:"0.01", exp:"0.1 × 0.1 = 0.01 (count decimal places: 1+1=2 places) 🧮", subject:"Math", chapter:"Fractions and Decimals", topic:"Multiplication of Decimals", difficulty:"Easy", classLevel:"7" },
+  { q:"Which fraction is bigger: 3/4 or 2/3?", opts:["3/4","2/3","Both equal","Cannot say"], ans:"3/4", exp:"Convert to same denominator: 9/12 vs 8/12. So 3/4 is bigger! 🏆", subject:"Math", chapter:"Fractions and Decimals", topic:"Comparing Fractions", difficulty:"Medium", classLevel:"7" },
+  { q:"2.5 ÷ 0.5 = ?", opts:["5","25","0.5","50"], ans:"5", exp:"2.5 ÷ 0.5 = 25/5 = 5. Multiply both by 10 to remove decimal! 💡", subject:"Math", chapter:"Fractions and Decimals", topic:"Division of Decimals", difficulty:"Medium", classLevel:"7" },
+  { q:"What is 3/4 of 20?", opts:["15","12","10","8"], ans:"15", exp:"3/4 of 20 = (3×20)/4 = 60/4 = 15 🌟", subject:"Math", chapter:"Fractions and Decimals", topic:"Fraction of a Quantity", difficulty:"Medium", classLevel:"7" },
 
-  { q:"If 2x + 3 = 11, what is x?", opts:["4","3","7","8"], ans:0, exp:"2x = 11-3 = 8, so x = 8/2 = 4. Always do the same to both sides! ⚖️", subject:"Math", chapter:"Simple Equations" },
-  { q:"If x/3 = 5, what is x?", opts:["15","5/3","8","2"], ans:0, exp:"Multiply both sides by 3: x = 5×3 = 15 ✅", subject:"Math", chapter:"Simple Equations" },
-  { q:"Which is a linear equation?", opts:["2x+3=7","x²=4","x³=8","√x=2"], ans:0, exp:"Linear equation has variable with power 1 only. 2x+3=7 is linear! 📐", subject:"Math", chapter:"Simple Equations" },
+  // ---- MATH: Simple Equations ----
+  { q:"If 2x + 3 = 11, what is x?", opts:["4","3","7","8"], ans:"4", exp:"2x = 11-3 = 8, so x = 8/2 = 4. Always do the same to both sides! ⚖️", subject:"Math", chapter:"Simple Equations", topic:"Solving Equations", difficulty:"Medium", classLevel:"7" },
+  { q:"If x/3 = 5, what is x?", opts:["15","5/3","8","2"], ans:"15", exp:"Multiply both sides by 3: x = 5×3 = 15 ✅", subject:"Math", chapter:"Simple Equations", topic:"Solving Equations", difficulty:"Easy", classLevel:"7" },
+  { q:"Which is a linear equation?", opts:["2x+3=7","x²=4","x³=8","√x=2"], ans:"2x+3=7", exp:"Linear equation has variable with power 1 only. 2x+3=7 is linear! 📐", subject:"Math", chapter:"Simple Equations", topic:"Identifying Linear Equations", difficulty:"Easy", classLevel:"7" },
+  { q:"If 5y − 2 = 13, then y =", opts:["3","5","2","11"], ans:"3", exp:"5y = 13+2 = 15, so y = 15/5 = 3. Transpose -2 to the other side! ⚖️", subject:"Math", chapter:"Simple Equations", topic:"Solving Equations", difficulty:"Medium", classLevel:"7" },
+  { q:"The solution of 3x = 0 is:", opts:["0","3","1","-3"], ans:"0", exp:"3x = 0 → x = 0/3 = 0. Zero is the only solution! ✅", subject:"Math", chapter:"Simple Equations", topic:"Solving Equations", difficulty:"Easy", classLevel:"7" },
 
-  { q:"Mean of 2, 4, 6, 8, 10 is:", opts:["6","5","7","8"], ans:0, exp:"Mean = Sum/Count = 30/5 = 6 📊", subject:"Math", chapter:"Data Handling" },
-  { q:"Mode of 3,3,5,7,7,7,9 is:", opts:["7","3","9","5"], ans:0, exp:"Mode = most frequent number. 7 appears 3 times! 🎯", subject:"Math", chapter:"Data Handling" },
-  { q:"The middle value of arranged data is called:", opts:["Median","Mean","Mode","Range"], ans:0, exp:"When data is arranged in order, the middle value is called Median! 📏", subject:"Math", chapter:"Data Handling" },
+  // ---- MATH: Data Handling ----
+  { q:"Mean of 2, 4, 6, 8, 10 is:", opts:["6","5","7","8"], ans:"6", exp:"Mean = Sum/Count = 30/5 = 6 📊", subject:"Math", chapter:"Data Handling", topic:"Mean", difficulty:"Easy", classLevel:"7" },
+  { q:"Mode of 3,3,5,7,7,7,9 is:", opts:["7","3","9","5"], ans:"7", exp:"Mode = most frequently appearing number. 7 appears 3 times! 🎯", subject:"Math", chapter:"Data Handling", topic:"Mode", difficulty:"Easy", classLevel:"7" },
+  { q:"The middle value of arranged data is called:", opts:["Median","Mean","Mode","Range"], ans:"Median", exp:"When data is arranged in order, the middle value is called Median! 📏", subject:"Math", chapter:"Data Handling", topic:"Median", difficulty:"Easy", classLevel:"7" },
+  { q:"Median of 3, 5, 7, 9, 11 is:", opts:["7","5","9","6"], ans:"7", exp:"The data is already ordered. Middle value (3rd of 5) = 7. That's the median! 📊", subject:"Math", chapter:"Data Handling", topic:"Median", difficulty:"Medium", classLevel:"7" },
+  { q:"A bar graph is used to:", opts:["Compare data using bars","Show parts of a whole","Plot points on a grid","Draw pie slices"], ans:"Compare data using bars", exp:"Bar graphs use rectangular bars of different heights to compare data! 📊", subject:"Math", chapter:"Data Handling", topic:"Bar Graphs", difficulty:"Easy", classLevel:"7" },
+  { q:"Range of 4, 7, 2, 9, 1 is:", opts:["8","9","5","7"], ans:"8", exp:"Range = Highest − Lowest = 9 − 1 = 8 📏", subject:"Math", chapter:"Data Handling", topic:"Range", difficulty:"Easy", classLevel:"7" },
+  { q:"If mean of 5 numbers is 8, their sum is:", opts:["40","8","13","45"], ans:"40", exp:"Sum = Mean × Count = 8 × 5 = 40 🔢", subject:"Math", chapter:"Data Handling", topic:"Mean", difficulty:"Medium", classLevel:"7" },
+  { q:"Which of these is NOT a measure of central tendency?", opts:["Range","Mean","Median","Mode"], ans:"Range", exp:"Range measures spread of data, not central tendency. Mean, Median, Mode are central tendency measures! 📊", subject:"Math", chapter:"Data Handling", topic:"Central Tendency", difficulty:"Hard", classLevel:"7" },
 
-  { q:"Sum of angles in a triangle is:", opts:["180°","360°","90°","270°"], ans:0, exp:"The angles in any triangle always add up to 180°! Try drawing one 🔺", subject:"Math", chapter:"The Triangle" },
-  { q:"An angle of exactly 90° is called:", opts:["Right angle","Acute angle","Obtuse angle","Reflex angle"], ans:0, exp:"A 90° angle is called a Right Angle. Looks like the corner of a book! 📐", subject:"Math", chapter:"Lines and Angles" },
+  // ---- MATH: The Triangle ----
+  { q:"Sum of angles in a triangle is:", opts:["180°","360°","90°","270°"], ans:"180°", exp:"The angles in any triangle always add up to 180°! Try drawing one 🔺", subject:"Math", chapter:"The Triangle", topic:"Angle Sum Property", difficulty:"Easy", classLevel:"7" },
+  { q:"An equilateral triangle has:", opts:["All 3 sides equal","2 sides equal","No sides equal","1 right angle"], ans:"All 3 sides equal", exp:"Equilateral = all three sides AND all three angles are equal (60° each)! △", subject:"Math", chapter:"The Triangle", topic:"Types of Triangles", difficulty:"Easy", classLevel:"7" },
+  { q:"A triangle with one angle equal to 90° is called:", opts:["Right-angled triangle","Obtuse triangle","Acute triangle","Equilateral triangle"], ans:"Right-angled triangle", exp:"A right-angled triangle has exactly one 90° angle – think of a set-square! 📐", subject:"Math", chapter:"The Triangle", topic:"Types of Triangles", difficulty:"Easy", classLevel:"7" },
+  { q:"If two angles of a triangle are 60° and 80°, the third angle is:", opts:["40°","60°","80°","100°"], ans:"40°", exp:"Sum of angles = 180°. Third angle = 180° − 60° − 80° = 40° ✅", subject:"Math", chapter:"The Triangle", topic:"Angle Sum Property", difficulty:"Medium", classLevel:"7" },
+  { q:"A scalene triangle has:", opts:["No sides equal","All sides equal","Two sides equal","One right angle"], ans:"No sides equal", exp:"Scalene triangle – all 3 sides are of different lengths! 📏", subject:"Math", chapter:"The Triangle", topic:"Types of Triangles", difficulty:"Easy", classLevel:"7" },
 
-  { q:"If CP = ₹200 and SP = ₹250, profit is:", opts:["₹50","₹200","₹250","₹450"], ans:0, exp:"Profit = SP - CP = 250 - 200 = ₹50 💰", subject:"Math", chapter:"Comparing Quantities" },
-  { q:"20% of 300 = ?", opts:["60","30","20","300"], ans:0, exp:"20% of 300 = (20/100)×300 = 60 🎯", subject:"Math", chapter:"Comparing Quantities" },
+  // ---- MATH: Lines and Angles ----
+  { q:"An angle of exactly 90° is called:", opts:["Right angle","Acute angle","Obtuse angle","Reflex angle"], ans:"Right angle", exp:"A 90° angle is called a Right Angle. Looks like the corner of a book! 📐", subject:"Math", chapter:"Lines and Angles", topic:"Types of Angles", difficulty:"Easy", classLevel:"7" },
+  { q:"Two lines that never meet are called:", opts:["Parallel lines","Perpendicular lines","Intersecting lines","Curved lines"], ans:"Parallel lines", exp:"Parallel lines always stay the same distance apart and never meet! Like railway tracks 🚃", subject:"Math", chapter:"Lines and Angles", topic:"Types of Lines", difficulty:"Easy", classLevel:"7" },
+  { q:"An angle less than 90° is called:", opts:["Acute angle","Obtuse angle","Right angle","Straight angle"], ans:"Acute angle", exp:"Acute means 'sharp' – an acute angle is sharp and small, less than 90°! ✏️", subject:"Math", chapter:"Lines and Angles", topic:"Types of Angles", difficulty:"Easy", classLevel:"7" },
+  { q:"Two angles that add up to 180° are called:", opts:["Supplementary angles","Complementary angles","Adjacent angles","Vertical angles"], ans:"Supplementary angles", exp:"Supplementary angles add up to 180°. Like two angles on a straight line! 📏", subject:"Math", chapter:"Lines and Angles", topic:"Pairs of Angles", difficulty:"Medium", classLevel:"7" },
+  { q:"Vertically opposite angles are always:", opts:["Equal","Supplementary","Complementary","Different"], ans:"Equal", exp:"When two lines cross, the angles opposite each other (vertically opposite) are always equal! ✖️", subject:"Math", chapter:"Lines and Angles", topic:"Pairs of Angles", difficulty:"Medium", classLevel:"7" },
 
-  // ---- SCIENCE ----
-  { q:"The process by which plants make their own food is called:", opts:["Photosynthesis","Respiration","Digestion","Transpiration"], ans:0, exp:"Plants use sunlight, water, and CO₂ to make food through Photosynthesis 🌿☀️", subject:"Science", chapter:"Nutrition in Plants" },
-  { q:"The green pigment in leaves is called:", opts:["Chlorophyll","Glucose","Starch","Cellulose"], ans:0, exp:"Chlorophyll is the green pigment that traps sunlight for photosynthesis! 🍃", subject:"Science", chapter:"Nutrition in Plants" },
-  { q:"Plants get CO₂ through tiny pores called:", opts:["Stomata","Roots","Flowers","Seeds"], ans:0, exp:"Stomata are tiny pores on leaves. They let CO₂ in and O₂ out! 🌱", subject:"Science", chapter:"Nutrition in Plants" },
-  { q:"Insectivorous plants eat insects because:", opts:["Lack nitrogen","Lack sunlight","Lack water","Lack CO₂"], ans:0, exp:"Insectivorous plants like Venus flytrap grow in nitrogen-poor soil! 🪤", subject:"Science", chapter:"Nutrition in Plants" },
+  // ---- MATH: Comparing Quantities ----
+  { q:"If CP = ₹200 and SP = ₹250, profit is:", opts:["₹50","₹200","₹250","₹450"], ans:"₹50", exp:"Profit = SP - CP = 250 - 200 = ₹50 💰", subject:"Math", chapter:"Comparing Quantities", topic:"Profit and Loss", difficulty:"Easy", classLevel:"7" },
+  { q:"20% of 300 = ?", opts:["60","30","20","300"], ans:"60", exp:"20% of 300 = (20/100)×300 = 60 🎯", subject:"Math", chapter:"Comparing Quantities", topic:"Percentage", difficulty:"Easy", classLevel:"7" },
+  { q:"If SP = ₹400 and profit = 25%, then CP is:", opts:["₹320","₹300","₹350","₹380"], ans:"₹320", exp:"CP = SP × 100/(100+profit%) = 400×100/125 = ₹320 💡", subject:"Math", chapter:"Comparing Quantities", topic:"Profit and Loss", difficulty:"Hard", classLevel:"7" },
+  { q:"A discount of 10% on ₹500 gives a selling price of:", opts:["₹450","₹400","₹490","₹510"], ans:"₹450", exp:"Discount = 10% of 500 = ₹50. SP = 500 − 50 = ₹450 🏷️", subject:"Math", chapter:"Comparing Quantities", topic:"Discount", difficulty:"Medium", classLevel:"7" },
+  { q:"Simple interest on ₹1000 at 5% per year for 2 years is:", opts:["₹100","₹50","₹200","₹150"], ans:"₹100", exp:"SI = P×R×T/100 = 1000×5×2/100 = ₹100 🏦", subject:"Math", chapter:"Comparing Quantities", topic:"Simple Interest", difficulty:"Medium", classLevel:"7" },
 
-  { q:"Digestion of food starts in the:", opts:["Mouth","Stomach","Small intestine","Large intestine"], ans:0, exp:"Saliva in the mouth begins breaking down food – especially starch! 👄", subject:"Science", chapter:"Nutrition in Animals" },
-  { q:"Which organ absorbs most nutrients from food?", opts:["Small intestine","Large intestine","Stomach","Liver"], ans:0, exp:"The small intestine has villi that absorb nutrients into the blood! 🫁", subject:"Science", chapter:"Nutrition in Animals" },
+  // ---- SCIENCE: Nutrition in Plants ----
+  { q:"The process by which plants make their own food is called:", opts:["Photosynthesis","Respiration","Digestion","Transpiration"], ans:"Photosynthesis", exp:"Plants use sunlight, water, and CO₂ to make food through Photosynthesis 🌿☀️", subject:"Science", chapter:"Nutrition in Plants", topic:"Photosynthesis", difficulty:"Easy", classLevel:"7" },
+  { q:"The green pigment in leaves is called:", opts:["Chlorophyll","Glucose","Starch","Cellulose"], ans:"Chlorophyll", exp:"Chlorophyll is the green pigment that traps sunlight for photosynthesis! 🍃", subject:"Science", chapter:"Nutrition in Plants", topic:"Photosynthesis", difficulty:"Easy", classLevel:"7" },
+  { q:"Plants get CO₂ through tiny pores called:", opts:["Stomata","Roots","Flowers","Seeds"], ans:"Stomata", exp:"Stomata are tiny pores on leaves. They let CO₂ in and O₂ out! 🌱", subject:"Science", chapter:"Nutrition in Plants", topic:"Stomata", difficulty:"Easy", classLevel:"7" },
+  { q:"Insectivorous plants eat insects because:", opts:["Lack nitrogen","Lack sunlight","Lack water","Lack CO₂"], ans:"Lack nitrogen", exp:"Insectivorous plants like Venus flytrap grow in nitrogen-poor soil! 🪤", subject:"Science", chapter:"Nutrition in Plants", topic:"Insectivorous Plants", difficulty:"Medium", classLevel:"7" },
+  { q:"Which gas do plants release during photosynthesis?", opts:["Oxygen","Carbon dioxide","Nitrogen","Hydrogen"], ans:"Oxygen", exp:"Plants release Oxygen during photosynthesis. That's why trees are so important! 🌳", subject:"Science", chapter:"Nutrition in Plants", topic:"Photosynthesis", difficulty:"Easy", classLevel:"7" },
 
-  { q:"Heat always flows from:", opts:["Hot to cold","Cold to hot","Both ways","Neither"], ans:0, exp:"Heat always flows from a hotter object to a colder object! 🌡️", subject:"Science", chapter:"Heat" },
-  { q:"The best conductor of heat among these is:", opts:["Iron","Wood","Plastic","Cotton"], ans:0, exp:"Metals like iron are good conductors of heat. That's why pans are metal! 🍳", subject:"Science", chapter:"Heat" },
-  { q:"Which thermometer is used to measure body temperature?", opts:["Clinical thermometer","Lab thermometer","Both","None"], ans:0, exp:"Clinical thermometer measures body temperature (35°C–42°C range)! 🌡️", subject:"Science", chapter:"Heat" },
-  { q:"Land breeze blows from:", opts:["Land to sea","Sea to land","North to south","South to north"], ans:0, exp:"At night, land cools faster, so air flows from land to sea – land breeze! 🌬️", subject:"Science", chapter:"Heat" },
+  // ---- SCIENCE: Nutrition in Animals ----
+  { q:"Digestion of food starts in the:", opts:["Mouth","Stomach","Small intestine","Large intestine"], ans:"Mouth", exp:"Saliva in the mouth begins breaking down food – especially starch! 👄", subject:"Science", chapter:"Nutrition in Animals", topic:"Digestive System", difficulty:"Easy", classLevel:"7" },
+  { q:"Which organ absorbs most nutrients from food?", opts:["Small intestine","Large intestine","Stomach","Liver"], ans:"Small intestine", exp:"The small intestine has villi that absorb nutrients into the blood! 🫁", subject:"Science", chapter:"Nutrition in Animals", topic:"Digestive System", difficulty:"Easy", classLevel:"7" },
+  { q:"Amoeba gets its food by a process called:", opts:["Phagocytosis","Photosynthesis","Digestion","Absorption"], ans:"Phagocytosis", exp:"Amoeba engulfs food particles using pseudopodia – this is called phagocytosis! 🦠", subject:"Science", chapter:"Nutrition in Animals", topic:"Nutrition in Simple Organisms", difficulty:"Hard", classLevel:"7" },
+  { q:"The digestive juice in the stomach is:", opts:["Gastric juice","Bile","Saliva","Pancreatic juice"], ans:"Gastric juice", exp:"The stomach secretes gastric juice which contains HCl and enzymes to digest food! 🧪", subject:"Science", chapter:"Nutrition in Animals", topic:"Digestive System", difficulty:"Medium", classLevel:"7" },
+  { q:"Cellulose is digested in ruminants by:", opts:["Bacteria in the stomach","Saliva","Liver enzymes","Pancreatic juice"], ans:"Bacteria in the stomach", exp:"Ruminants like cows have special bacteria in their stomach that digest cellulose! 🐄", subject:"Science", chapter:"Nutrition in Animals", topic:"Ruminants", difficulty:"Hard", classLevel:"7" },
+  { q:"The largest gland in the human body is:", opts:["Liver","Stomach","Pancreas","Kidney"], ans:"Liver", exp:"The liver is the largest gland. It produces bile which helps digest fats! 🫀", subject:"Science", chapter:"Nutrition in Animals", topic:"Digestive System", difficulty:"Medium", classLevel:"7" },
+  { q:"Bile is produced by which organ?", opts:["Liver","Pancreas","Stomach","Small intestine"], ans:"Liver", exp:"Bile is produced by the liver and stored in the gall bladder. It helps digest fats! 🟢", subject:"Science", chapter:"Nutrition in Animals", topic:"Digestive System", difficulty:"Medium", classLevel:"7" },
 
-  { q:"Acids taste:", opts:["Sour","Sweet","Bitter","Salty"], ans:0, exp:"Acids taste sour! Like lemon juice and vinegar 🍋", subject:"Science", chapter:"Acids Bases and Salts" },
-  { q:"Litmus paper turns red in:", opts:["Acid","Base","Neutral solution","Water"], ans:0, exp:"Red litmus turns blue in base, blue litmus turns red in acid! 🔴🔵", subject:"Science", chapter:"Acids Bases and Salts" },
-  { q:"Baking soda is:", opts:["A base","An acid","A salt","Neutral"], ans:0, exp:"Baking soda (sodium bicarbonate) is a base. It turns litmus blue! 🧁", subject:"Science", chapter:"Acids Bases and Salts" },
+  // ---- SCIENCE: Heat ----
+  { q:"Heat always flows from:", opts:["Hot to cold","Cold to hot","Both ways","Neither way"], ans:"Hot to cold", exp:"Heat always flows from a hotter object to a colder object! 🌡️", subject:"Science", chapter:"Heat", topic:"Transfer of Heat", difficulty:"Easy", classLevel:"7" },
+  { q:"The best conductor of heat among these is:", opts:["Iron","Wood","Plastic","Cotton"], ans:"Iron", exp:"Metals like iron are good conductors of heat. That's why pans are metal! 🍳", subject:"Science", chapter:"Heat", topic:"Conductors and Insulators", difficulty:"Easy", classLevel:"7" },
+  { q:"Which thermometer is used to measure body temperature?", opts:["Clinical thermometer","Lab thermometer","Maximum thermometer","Digital compass"], ans:"Clinical thermometer", exp:"Clinical thermometer measures body temperature (35°C–42°C range)! 🌡️", subject:"Science", chapter:"Heat", topic:"Thermometer", difficulty:"Easy", classLevel:"7" },
+  { q:"Land breeze blows from:", opts:["Land to sea","Sea to land","North to south","South to north"], ans:"Land to sea", exp:"At night, land cools faster, so air flows from land to sea – land breeze! 🌬️", subject:"Science", chapter:"Heat", topic:"Convection", difficulty:"Medium", classLevel:"7" },
+  { q:"Radiation is the transfer of heat:", opts:["Without any medium","Through solids only","Through liquids only","Through gases only"], ans:"Without any medium", exp:"Radiation needs no medium – heat from the Sun reaches Earth through the vacuum of space! ☀️", subject:"Science", chapter:"Heat", topic:"Transfer of Heat", difficulty:"Medium", classLevel:"7" },
+  { q:"Normal body temperature of a human is:", opts:["37°C","32°C","40°C","45°C"], ans:"37°C", exp:"Normal human body temperature is 37°C (98.6°F). Above 37°C indicates fever! 🌡️", subject:"Science", chapter:"Heat", topic:"Thermometer", difficulty:"Easy", classLevel:"7" },
+  { q:"Two angles that add up to 90° are called:", opts:["Complementary","Supplementary","Adjacent","Vertically opposite"], ans:"Complementary", exp:"Complementary angles add up to 90°. Supplementary add up to 180°! 📐", subject:"Math", chapter:"Lines and Angles", topic:"Pairs of Angles", difficulty:"Medium", classLevel:"7" },
+  { q:"Sea breeze blows from:", opts:["Sea to land","Land to sea","East to west","West to east"], ans:"Sea to land", exp:"During the day, land heats up faster than sea, so cooler sea air flows inland – sea breeze! 🌊", subject:"Science", chapter:"Heat", topic:"Convection", difficulty:"Medium", classLevel:"7" },
+  { q:"A dark-coloured object is a:", opts:["Better absorber of heat","Poor absorber of heat","Better reflector","Poor emitter"], ans:"Better absorber of heat", exp:"Dark surfaces absorb more heat and light. That's why we wear light colours in summer! 🌞", subject:"Science", chapter:"Heat", topic:"Radiation", difficulty:"Hard", classLevel:"7" },
 
-  { q:"Rusting of iron is a:", opts:["Chemical change","Physical change","Both","Neither"], ans:0, exp:"Rusting is a chemical change – new substance (iron oxide) forms and can't be reversed! 🔧", subject:"Science", chapter:"Physical and Chemical Changes" },
-  { q:"Melting of ice is a:", opts:["Physical change","Chemical change","Both","Neither"], ans:0, exp:"Melting is physical – water can be frozen again! No new substance is formed 🧊", subject:"Science", chapter:"Physical and Chemical Changes" },
+  // ---- SCIENCE: Acids Bases and Salts ----
+  { q:"Acids taste:", opts:["Sour","Sweet","Bitter","Salty"], ans:"Sour", exp:"Acids taste sour! Like lemon juice and vinegar 🍋", subject:"Science", chapter:"Acids Bases and Salts", topic:"Properties of Acids", difficulty:"Easy", classLevel:"7" },
+  { q:"Blue litmus paper turns red in:", opts:["Acid","Base","Neutral solution","Distilled water"], ans:"Acid", exp:"Blue litmus turns RED in acid. Red litmus turns BLUE in base! 🔴🔵", subject:"Science", chapter:"Acids Bases and Salts", topic:"Indicators", difficulty:"Easy", classLevel:"7" },
+  { q:"Baking soda is:", opts:["A base","An acid","A salt","Neutral"], ans:"A base", exp:"Baking soda (sodium bicarbonate) is a base. It turns red litmus blue! 🧁", subject:"Science", chapter:"Acids Bases and Salts", topic:"Bases", difficulty:"Easy", classLevel:"7" },
+  { q:"The chemical name of common salt is:", opts:["Sodium chloride","Sodium bicarbonate","Calcium carbonate","Potassium chloride"], ans:"Sodium chloride", exp:"Common salt = Sodium Chloride (NaCl). Formed when HCl reacts with NaOH! 🧂", subject:"Science", chapter:"Acids Bases and Salts", topic:"Salts", difficulty:"Medium", classLevel:"7" },
+  { q:"Turmeric turns red/pink in:", opts:["Basic solutions","Acidic solutions","Neutral solutions","Distilled water"], ans:"Basic solutions", exp:"Turmeric is a natural indicator – it turns red/pink in basic (alkaline) solutions! 🟡", subject:"Science", chapter:"Acids Bases and Salts", topic:"Indicators", difficulty:"Medium", classLevel:"7" },
+  { q:"Which of these is an acid?", opts:["Lemon juice","Soap","Baking soda","Chalk"], ans:"Lemon juice", exp:"Lemon juice contains citric acid – it turns blue litmus paper red! 🍋", subject:"Science", chapter:"Acids Bases and Salts", topic:"Properties of Acids", difficulty:"Easy", classLevel:"7" },
+  { q:"When acid and base react, they form:", opts:["Salt and water","Gas and water","Gas and salt","Only water"], ans:"Salt and water", exp:"Neutralisation reaction: Acid + Base → Salt + Water. This is also called a neutralisation reaction! ⚗️", subject:"Science", chapter:"Acids Bases and Salts", topic:"Neutralisation", difficulty:"Medium", classLevel:"7" },
+  { q:"The pH of a neutral solution is:", opts:["7","0","14","4"], ans:"7", exp:"Pure water is neutral with pH 7. Below 7 = acidic, above 7 = basic! 🔬", subject:"Science", chapter:"Acids Bases and Salts", topic:"pH Scale", difficulty:"Hard", classLevel:"7" },
 
-  { q:"Which gas do plants release during photosynthesis?", opts:["Oxygen","Carbon dioxide","Nitrogen","Hydrogen"], ans:0, exp:"Plants release Oxygen during photosynthesis. That's why trees are so important! 🌳", subject:"Science", chapter:"Nutrition in Plants" },
-  { q:"Respiration in organisms releases:", opts:["Energy","Sunlight","Food","Water only"], ans:0, exp:"Respiration breaks down glucose to release energy for all body activities! ⚡", subject:"Science", chapter:"Respiration in Organisms" },
-  { q:"Which blood vessels carry blood away from the heart?", opts:["Arteries","Veins","Capillaries","Nerves"], ans:0, exp:"Arteries carry blood AWAY from the heart. Remember: A for Away and Artery! ❤️", subject:"Science", chapter:"Transportation in Animals and Plants" },
+  // ---- SCIENCE: Physical and Chemical Changes ----
+  { q:"Rusting of iron is a:", opts:["Chemical change","Physical change","Both","Neither"], ans:"Chemical change", exp:"Rusting is a chemical change – new substance (iron oxide) forms and can't be reversed! 🔧", subject:"Science", chapter:"Physical and Chemical Changes", topic:"Chemical Changes", difficulty:"Easy", classLevel:"7" },
+  { q:"Melting of ice is a:", opts:["Physical change","Chemical change","Both","Neither"], ans:"Physical change", exp:"Melting is physical – water can be frozen again! No new substance is formed 🧊", subject:"Science", chapter:"Physical and Chemical Changes", topic:"Physical Changes", difficulty:"Easy", classLevel:"7" },
+  { q:"Burning of wood is a:", opts:["Chemical change","Physical change","Reversible change","Biological change"], ans:"Chemical change", exp:"Burning produces new substances (ash, CO₂) that can't be turned back to wood – chemical change! 🔥", subject:"Science", chapter:"Physical and Chemical Changes", topic:"Chemical Changes", difficulty:"Easy", classLevel:"7" },
+  { q:"Crystallisation is an example of:", opts:["Physical change","Chemical change","Biological change","Nuclear change"], ans:"Physical change", exp:"Crystallisation is a physical change – no new substance forms, and it can be reversed! 💎", subject:"Science", chapter:"Physical and Chemical Changes", topic:"Physical Changes", difficulty:"Medium", classLevel:"7" },
+  { q:"When vinegar and baking soda are mixed, which gas is released?", opts:["Carbon dioxide","Oxygen","Nitrogen","Hydrogen"], ans:"Carbon dioxide", exp:"Vinegar (acid) + baking soda (base) → CO₂ gas + water + salt. It fizzes! 🧁", subject:"Science", chapter:"Physical and Chemical Changes", topic:"Chemical Changes", difficulty:"Medium", classLevel:"7" },
+  { q:"Which of these is a physical change?", opts:["Cutting paper","Burning coal","Souring of milk","Cooking rice"], ans:"Cutting paper", exp:"Cutting paper only changes shape, no new substance forms – it's a physical change! ✂️", subject:"Science", chapter:"Physical and Chemical Changes", topic:"Physical Changes", difficulty:"Easy", classLevel:"7" },
+  { q:"Electroplating uses which type of change?", opts:["Chemical change","Physical change","Biological change","Mechanical change"], ans:"Chemical change", exp:"Electroplating uses electrolysis (a chemical process) to deposit a metal layer on an object! ⚡", subject:"Science", chapter:"Physical and Chemical Changes", topic:"Chemical Changes", difficulty:"Hard", classLevel:"7" },
 
-  // ---- ENGLISH ----
-  { q:"A noun is a word that names a:", opts:["Person, place or thing","Action","Description","Joining word"], ans:0, exp:"Nouns name people (Ram), places (Delhi), things (book) or ideas (love)! 📝", subject:"English", chapter:"Grammar – Nouns" },
-  { q:"Which is a proper noun?", opts:["Delhi","City","River","Mountain"], ans:0, exp:"Proper nouns name specific things – Delhi is a specific city! Always capitalized 🏙️", subject:"English", chapter:"Grammar – Nouns" },
-  { q:"The plural of 'child' is:", opts:["Children","Childs","Childes","Child"], ans:0, exp:"Child → Children is an irregular plural. No '-s' or '-es' added! 👶", subject:"English", chapter:"Grammar – Nouns" },
+  // ---- SCIENCE: Respiration in Organisms ----
+  { q:"Respiration in organisms releases:", opts:["Energy","Sunlight","Food","Only water"], ans:"Energy", exp:"Respiration breaks down glucose to release energy for all body activities! ⚡", subject:"Science", chapter:"Respiration in Organisms", topic:"Aerobic Respiration", difficulty:"Easy", classLevel:"7" },
+  { q:"The gas we breathe in is:", opts:["Oxygen","Carbon dioxide","Nitrogen","Hydrogen"], ans:"Oxygen", exp:"We breathe in Oxygen (O₂) and use it to break down food for energy! 💨", subject:"Science", chapter:"Respiration in Organisms", topic:"Aerobic Respiration", difficulty:"Easy", classLevel:"7" },
+  { q:"Yeast performs which type of respiration?", opts:["Anaerobic","Aerobic","Both","None"], ans:"Anaerobic", exp:"Yeast respires anaerobically – without oxygen – producing CO₂ and alcohol! 🍞", subject:"Science", chapter:"Respiration in Organisms", topic:"Anaerobic Respiration", difficulty:"Medium", classLevel:"7" },
+  { q:"During heavy exercise, muscles produce:", opts:["Lactic acid","Glucose","Oxygen","CO₂ only"], ans:"Lactic acid", exp:"When oxygen supply is short, muscles do anaerobic respiration and produce lactic acid (causes cramps)! 💪", subject:"Science", chapter:"Respiration in Organisms", topic:"Anaerobic Respiration", difficulty:"Hard", classLevel:"7" },
+  { q:"The organ used for breathing in fish is:", opts:["Gills","Lungs","Skin","Stomata"], ans:"Gills", exp:"Fish breathe through gills which absorb dissolved oxygen from water! 🐟", subject:"Science", chapter:"Respiration in Organisms", topic:"Breathing in Animals", difficulty:"Easy", classLevel:"7" },
+  { q:"The formula for aerobic respiration is:", opts:["Glucose + Oxygen → CO₂ + Water + Energy","Glucose → CO₂ + Alcohol","CO₂ + Water → Glucose + O₂","Glucose + Water → CO₂ + Energy"], ans:"Glucose + Oxygen → CO₂ + Water + Energy", exp:"Aerobic respiration: Glucose + O₂ → CO₂ + H₂O + Energy. This is the opposite of photosynthesis! ⚡", subject:"Science", chapter:"Respiration in Organisms", topic:"Aerobic Respiration", difficulty:"Hard", classLevel:"7" },
 
-  { q:"'He runs every day' – the verb is in which tense?", opts:["Present","Past","Future","Perfect"], ans:0, exp:"'Runs' shows a habit in the present. Simple Present Tense! ⏰", subject:"English", chapter:"Grammar – Verbs and Tenses" },
-  { q:"Past tense of 'go' is:", opts:["Went","Goed","Gone","Going"], ans:0, exp:"Go is an irregular verb. Its past tense is Went, not Goed! 🚶", subject:"English", chapter:"Grammar – Verbs and Tenses" },
-  { q:"'She __ going to school.' – Fill in:", opts:["is","are","am","were"], ans:0, exp:"'She' is third person singular, so we use 'is'. She is going to school! ✏️", subject:"English", chapter:"Grammar – Verbs and Tenses" },
+  // ---- SCIENCE: Transportation in Animals and Plants ----
+  { q:"Which blood vessels carry blood away from the heart?", opts:["Arteries","Veins","Capillaries","Nerves"], ans:"Arteries", exp:"Arteries carry blood AWAY from the heart. Remember: A for Away and Artery! ❤️", subject:"Science", chapter:"Transportation in Animals and Plants", topic:"Blood Vessels", difficulty:"Easy", classLevel:"7" },
+  { q:"Which blood cells help in clotting of blood?", opts:["Platelets","Red blood cells","White blood cells","Plasma"], ans:"Platelets", exp:"Platelets (thrombocytes) help form clots to stop bleeding at a wound! 🩸", subject:"Science", chapter:"Transportation in Animals and Plants", topic:"Blood", difficulty:"Medium", classLevel:"7" },
+  { q:"Water is transported in plants through:", opts:["Xylem","Phloem","Stomata","Roots alone"], ans:"Xylem", exp:"Xylem vessels transport water and minerals from roots to leaves! 🌿", subject:"Science", chapter:"Transportation in Animals and Plants", topic:"Transport in Plants", difficulty:"Medium", classLevel:"7" },
+  { q:"Food is transported in plants through:", opts:["Phloem","Xylem","Stomata","Chlorophyll"], ans:"Phloem", exp:"Phloem transports food (glucose) made in leaves to all parts of the plant! 🍃", subject:"Science", chapter:"Transportation in Animals and Plants", topic:"Transport in Plants", difficulty:"Medium", classLevel:"7" },
+  { q:"The liquid part of blood is called:", opts:["Plasma","Platelets","Serum","Haemoglobin"], ans:"Plasma", exp:"Plasma is the yellowish liquid part of blood that carries nutrients, hormones, and waste! 🔬", subject:"Science", chapter:"Transportation in Animals and Plants", topic:"Blood", difficulty:"Hard", classLevel:"7" },
+  { q:"White blood cells help in:", opts:["Fighting infections","Carrying oxygen","Clotting blood","Transporting food"], ans:"Fighting infections", exp:"White blood cells (WBCs) are our body's soldiers – they fight bacteria and viruses! 🛡️", subject:"Science", chapter:"Transportation in Animals and Plants", topic:"Blood", difficulty:"Easy", classLevel:"7" },
 
-  { q:"An adjective is a word that:", opts:["Describes a noun","Shows action","Joins sentences","Names a place"], ans:0, exp:"Adjectives describe nouns: a RED apple, a TALL boy, a HAPPY child! 🎨", subject:"English", chapter:"Grammar – Adjectives" },
-  { q:"In 'The big dog barked', the adjective is:", opts:["Big","Dog","Barked","The"], ans:0, exp:"'Big' describes the dog – it tells us what kind of dog! 🐕", subject:"English", chapter:"Grammar – Adjectives" },
-  { q:"Comparative degree of 'good' is:", opts:["Better","Gooder","Best","More good"], ans:0, exp:"Good → Better → Best are irregular degrees of comparison! ⭐", subject:"English", chapter:"Grammar – Adjectives" },
+  // ---- ENGLISH: Grammar – Nouns ----
+  { q:"A noun is a word that names a:", opts:["Person, place or thing","Action word","Describing word","Joining word"], ans:"Person, place or thing", exp:"Nouns name people (Ram), places (Delhi), things (book) or ideas (love)! 📝", subject:"English", chapter:"Grammar – Nouns", topic:"Definition of Noun", difficulty:"Easy", classLevel:"7" },
+  { q:"Which is a proper noun?", opts:["Delhi","City","River","Mountain"], ans:"Delhi", exp:"Proper nouns name specific things – Delhi is a specific city! Always capitalized 🏙️", subject:"English", chapter:"Grammar – Nouns", topic:"Types of Nouns", difficulty:"Easy", classLevel:"7" },
+  { q:"The plural of 'child' is:", opts:["Children","Childs","Childes","Child"], ans:"Children", exp:"Child → Children is an irregular plural. No '-s' or '-es' added! 👶", subject:"English", chapter:"Grammar – Nouns", topic:"Plural Nouns", difficulty:"Medium", classLevel:"7" },
+  { q:"Which of these is a collective noun?", opts:["Flock","Run","Tall","Quickly"], ans:"Flock", exp:"A collective noun names a group: a flock of birds, a team of players, a herd of cattle! 🐦", subject:"English", chapter:"Grammar – Nouns", topic:"Types of Nouns", difficulty:"Medium", classLevel:"7" },
+  { q:"The noun in 'Her kindness impressed everyone' is:", opts:["Kindness","Her","Impressed","Everyone"], ans:"Kindness", exp:"'Kindness' is an abstract noun – it names a quality or idea you can't touch! 💛", subject:"English", chapter:"Grammar – Nouns", topic:"Types of Nouns", difficulty:"Hard", classLevel:"7" },
 
-  { q:"'He, she, it' are:", opts:["Pronouns","Nouns","Verbs","Adjectives"], ans:0, exp:"Pronouns replace nouns. Instead of 'Ram', we say 'He' 🔄", subject:"English", chapter:"Grammar – Pronouns" },
-  { q:"The subject pronoun for 'Ram and I' when we become the subject:", opts:["We","Us","Our","They"], ans:0, exp:"Ram and I = We (subject pronoun). We went to school. 🏫", subject:"English", chapter:"Grammar – Pronouns" },
+  // ---- ENGLISH: Grammar – Verbs and Tenses ----
+  { q:"'He runs every day' – the verb is in which tense?", opts:["Simple Present","Simple Past","Simple Future","Past Perfect"], ans:"Simple Present", exp:"'Runs' shows a habit in the present. Simple Present Tense! ⏰", subject:"English", chapter:"Grammar – Verbs and Tenses", topic:"Tenses", difficulty:"Easy", classLevel:"7" },
+  { q:"Past tense of 'go' is:", opts:["Went","Goed","Gone","Going"], ans:"Went", exp:"Go is an irregular verb. Its past tense is Went, not Goed! 🚶", subject:"English", chapter:"Grammar – Verbs and Tenses", topic:"Irregular Verbs", difficulty:"Easy", classLevel:"7" },
+  { q:"'She __ going to school.' – Fill in:", opts:["is","are","am","were"], ans:"is", exp:"'She' is third person singular, so we use 'is'. She is going to school! ✏️", subject:"English", chapter:"Grammar – Verbs and Tenses", topic:"Subject-Verb Agreement", difficulty:"Easy", classLevel:"7" },
+  { q:"Which sentence uses the future tense?", opts:["She will sing tomorrow","She sang yesterday","She sings daily","She was singing"], ans:"She will sing tomorrow", exp:"'Will sing' shows future tense – something that hasn't happened yet! 🔮", subject:"English", chapter:"Grammar – Verbs and Tenses", topic:"Tenses", difficulty:"Easy", classLevel:"7" },
+  { q:"The past participle of 'write' is:", opts:["Written","Wrote","Writing","Writed"], ans:"Written", exp:"Write → Wrote (past) → Written (past participle). Irregular verb! ✍️", subject:"English", chapter:"Grammar – Verbs and Tenses", topic:"Irregular Verbs", difficulty:"Medium", classLevel:"7" },
 
-  // ---- SOCIAL SCIENCE ----
-  { q:"Who wrote the Prithviraj Raso?", opts:["Chand Bardai","Kalhana","Amir Khusrau","Tulsidas"], ans:0, exp:"Chand Bardai wrote Prithviraj Raso, a poem about Prithviraj Chauhan! 📜", subject:"SST", chapter:"Tracing Changes Through Thousand Years" },
-  { q:"The Rashtrakutas were a dynasty from:", opts:["Deccan","Bengal","Kashmir","Rajasthan"], ans:0, exp:"The Rashtrakutas ruled from the Deccan (South India) region! 🏯", subject:"SST", chapter:"New Kings and Kingdoms" },
-  { q:"The first Battle of Panipat was fought in:", opts:["1526","1556","1761","1192"], ans:0, exp:"Babur defeated Ibrahim Lodi in the First Battle of Panipat in 1526 CE! ⚔️", subject:"SST", chapter:"The Mughal Empire" },
-  { q:"Who built the Taj Mahal?", opts:["Shah Jahan","Akbar","Aurangzeb","Jahangir"], ans:0, exp:"Shah Jahan built the Taj Mahal in memory of his wife Mumtaz Mahal 💎", subject:"SST", chapter:"The Mughal Empire" },
-  { q:"Akbar followed a policy of:", opts:["Religious tolerance","Religious intolerance","Isolation","Expansion only"], ans:0, exp:"Akbar was known for Sul-i-kul (peace with all) – religious tolerance! 🕊️", subject:"SST", chapter:"The Mughal Empire" },
-  { q:"The innermost layer of the Earth is called:", opts:["Core","Mantle","Crust","Lithosphere"], ans:0, exp:"The innermost layer is the Core, then Mantle, and finally the Crust on the outside! 🌍", subject:"SST", chapter:"Inside Our Earth" },
-  { q:"Earthquakes are recorded by:", opts:["Seismograph","Barometer","Thermometer","Anemometer"], ans:0, exp:"A Seismograph detects and records earthquake waves! 📈", subject:"SST", chapter:"Our Changing Earth" },
-  { q:"India is a:", opts:["Democracy","Monarchy","Dictatorship","Oligarchy"], ans:0, exp:"India is the world's largest Democracy! Citizens choose their leaders 🗳️", subject:"SST", chapter:"Democracy – Equality and Justice" },
-  { q:"Universal Adult Franchise means:", opts:["Every adult can vote","Only educated can vote","Only rich can vote","Only men can vote"], ans:0, exp:"Universal Adult Franchise = every citizen above 18 gets to vote, regardless of wealth or gender! ✅", subject:"SST", chapter:"Democracy – Equality and Justice" },
-  { q:"The head of the State Government is the:", opts:["Chief Minister","Governor","Prime Minister","President"], ans:0, exp:"The Chief Minister is the real head of the State Government! 🏛️", subject:"SST", chapter:"State Government" }
+  // ---- ENGLISH: Grammar – Adjectives ----
+  { q:"An adjective is a word that:", opts:["Describes a noun","Shows an action","Joins sentences","Names a place"], ans:"Describes a noun", exp:"Adjectives describe nouns: a RED apple, a TALL boy, a HAPPY child! 🎨", subject:"English", chapter:"Grammar – Adjectives", topic:"Definition of Adjective", difficulty:"Easy", classLevel:"7" },
+  { q:"In 'The big dog barked', the adjective is:", opts:["Big","Dog","Barked","The"], ans:"Big", exp:"'Big' describes the dog – it tells us what kind of dog! 🐕", subject:"English", chapter:"Grammar – Adjectives", topic:"Identifying Adjectives", difficulty:"Easy", classLevel:"7" },
+  { q:"Comparative degree of 'good' is:", opts:["Better","Gooder","Best","More good"], ans:"Better", exp:"Good → Better → Best are irregular degrees of comparison! ⭐", subject:"English", chapter:"Grammar – Adjectives", topic:"Degrees of Comparison", difficulty:"Medium", classLevel:"7" },
+  { q:"Superlative degree of 'tall' is:", opts:["Tallest","Taller","Most tall","Tallier"], ans:"Tallest", exp:"Tall → Taller → Tallest. Add '-est' to short adjectives for superlative! 🏔️", subject:"English", chapter:"Grammar – Adjectives", topic:"Degrees of Comparison", difficulty:"Easy", classLevel:"7" },
+  { q:"Which word is an adjective in: 'She wore a beautiful dress'?", opts:["Beautiful","Wore","Dress","She"], ans:"Beautiful", exp:"'Beautiful' describes the dress (a noun), so it is an adjective! 👗", subject:"English", chapter:"Grammar – Adjectives", topic:"Identifying Adjectives", difficulty:"Easy", classLevel:"7" },
+
+  // ---- ENGLISH: Grammar – Pronouns ----
+  { q:"'He, she, it' are:", opts:["Pronouns","Nouns","Verbs","Adjectives"], ans:"Pronouns", exp:"Pronouns replace nouns. Instead of 'Ram', we say 'He' 🔄", subject:"English", chapter:"Grammar – Pronouns", topic:"Personal Pronouns", difficulty:"Easy", classLevel:"7" },
+  { q:"Which is a reflexive pronoun?", opts:["Himself","He","Him","His"], ans:"Himself", exp:"Reflexive pronouns end in -self/-selves: myself, yourself, himself, herself! 🪞", subject:"English", chapter:"Grammar – Pronouns", topic:"Types of Pronouns", difficulty:"Medium", classLevel:"7" },
+  { q:"'This' and 'that' are examples of:", opts:["Demonstrative pronouns","Personal pronouns","Relative pronouns","Indefinite pronouns"], ans:"Demonstrative pronouns", exp:"This/that/these/those point to specific things – they are demonstrative pronouns! 👉", subject:"English", chapter:"Grammar – Pronouns", topic:"Types of Pronouns", difficulty:"Medium", classLevel:"7" },
+  { q:"Choose the correct pronoun: 'Ram and ___ went to school.'", opts:["I","Me","My","Mine"], ans:"I", exp:"Use subject pronoun 'I' as the subject of the verb. 'Me' is an object pronoun! 🧑‍🏫", subject:"English", chapter:"Grammar – Pronouns", topic:"Personal Pronouns", difficulty:"Hard", classLevel:"7" },
+  { q:"'Who' is used for:", opts:["Persons","Things","Animals only","Places"], ans:"Persons", exp:"'Who' refers to persons. 'Which' refers to things/animals. 'That' can be used for both! 👤", subject:"English", chapter:"Grammar – Pronouns", topic:"Relative Pronouns", difficulty:"Medium", classLevel:"7" },
+  { q:"Plural of 'I' is:", opts:["We","They","You","Us"], ans:"We", exp:"I (singular) → We (plural). Both are subject pronouns! 👥", subject:"English", chapter:"Grammar – Pronouns", topic:"Personal Pronouns", difficulty:"Easy", classLevel:"7" },
+
+  // ---- SST: The Mughal Empire ----
+  { q:"The Mughal Empire was founded by:", opts:["Babur","Akbar","Humayun","Aurangzeb"], ans:"Babur", exp:"Babur founded the Mughal Empire in 1526 after winning the First Battle of Panipat! 🏯", subject:"SST", chapter:"The Mughal Empire", topic:"Mughal Rulers", difficulty:"Easy", classLevel:"7" },
+  { q:"Who built the Taj Mahal?", opts:["Akbar","Babur","Aurangzeb","Shah Jahan"], ans:"Shah Jahan", exp:"Shah Jahan built the Taj Mahal in memory of his wife Mumtaz Mahal. It is in Agra! 💎", subject:"SST", chapter:"The Mughal Empire", topic:"Mughal Monuments", difficulty:"Easy", classLevel:"7" },
+  { q:"Akbar's policy of religious tolerance was called:", opts:["Sul-i-kul","Jihad","Dharma","Fatwa"], ans:"Sul-i-kul", exp:"Akbar believed in 'Sul-i-kul' meaning universal peace – he respected all religions! 🕊️", subject:"SST", chapter:"The Mughal Empire", topic:"Akbar's Policies", difficulty:"Medium", classLevel:"7" },
+  { q:"The First Battle of Panipat was fought in:", opts:["1526","1556","1600","1707"], ans:"1526", exp:"Babur defeated Ibrahim Lodi at the First Battle of Panipat in 1526, establishing Mughal rule! ⚔️", subject:"SST", chapter:"The Mughal Empire", topic:"Mughal History", difficulty:"Medium", classLevel:"7" },
+  { q:"Din-i-Ilahi was started by:", opts:["Akbar","Babur","Shah Jahan","Aurangzeb"], ans:"Akbar", exp:"Akbar introduced Din-i-Ilahi as a combination of elements from different religions! 🌟", subject:"SST", chapter:"The Mughal Empire", topic:"Akbar's Policies", difficulty:"Medium", classLevel:"7" },
+  { q:"The autobiography of Babur is called:", opts:["Baburnama","Akbarnama","Ain-i-Akbari","Tuzuk-i-Timuri"], ans:"Baburnama", exp:"Babur wrote his autobiography 'Baburnama' in the Chagatai Turkic language! 📚", subject:"SST", chapter:"The Mughal Empire", topic:"Mughal Literature", difficulty:"Hard", classLevel:"7" },
+  { q:"Fatehpur Sikri was built by:", opts:["Akbar","Shah Jahan","Babur","Jahangir"], ans:"Akbar", exp:"Akbar built Fatehpur Sikri near Agra as his new capital city! 🏯", subject:"SST", chapter:"The Mughal Empire", topic:"Mughal Monuments", difficulty:"Medium", classLevel:"7" },
+  { q:"The last great Mughal emperor was:", opts:["Aurangzeb","Shah Jahan","Akbar","Bahadur Shah Zafar"], ans:"Aurangzeb", exp:"Aurangzeb was the last powerful Mughal emperor. After him the empire declined! 👑", subject:"SST", chapter:"The Mughal Empire", topic:"Mughal Rulers", difficulty:"Hard", classLevel:"7" },
+
+  // ---- SST: Democracy – Equality and Justice ----
+  { q:"Democracy means government by:", opts:["The people","The king","The army","The rich"], ans:"The people", exp:"Democracy comes from Greek: 'demos' (people) + 'kratos' (rule). Power belongs to the people! 🗳️", subject:"SST", chapter:"Democracy – Equality and Justice", topic:"Democracy", difficulty:"Easy", classLevel:"7" },
+  { q:"The voting age in India is:", opts:["18 years","21 years","16 years","25 years"], ans:"18 years", exp:"Citizens above 18 years can vote in India. This is called Universal Adult Franchise! 🗳️", subject:"SST", chapter:"Democracy – Equality and Justice", topic:"Elections", difficulty:"Easy", classLevel:"7" },
+  { q:"The Right to Equality is guaranteed by Article:", opts:["14","19","21","32"], ans:"14", exp:"Article 14 of the Indian Constitution guarantees the Right to Equality to all citizens! ⚖️", subject:"SST", chapter:"Democracy – Equality and Justice", topic:"Fundamental Rights", difficulty:"Medium", classLevel:"7" },
+  { q:"Untouchability was abolished in India in:", opts:["1950","1947","1960","1975"], ans:"1950", exp:"The Constitution that came into force on 26 Jan 1950 abolished untouchability under Article 17! 🇮🇳", subject:"SST", chapter:"Democracy – Equality and Justice", topic:"Equality", difficulty:"Medium", classLevel:"7" },
+  { q:"Which of these is NOT a Fundamental Right in India?", opts:["Right to property","Right to equality","Right to freedom","Right against exploitation"], ans:"Right to property", exp:"Right to Property was removed from Fundamental Rights by the 44th Amendment in 1978! 📜", subject:"SST", chapter:"Democracy – Equality and Justice", topic:"Fundamental Rights", difficulty:"Hard", classLevel:"7" },
+  { q:"Universal Adult Franchise means:", opts:["Every adult can vote","Only men can vote","Only educated can vote","Only taxpayers can vote"], ans:"Every adult can vote", exp:"Universal Adult Franchise = every adult citizen above 18 has the right to vote regardless of caste, religion or gender! 🗳️", subject:"SST", chapter:"Democracy – Equality and Justice", topic:"Elections", difficulty:"Easy", classLevel:"7" },
+  { q:"India is described as a:", opts:["Sovereign Socialist Secular Democratic Republic","Constitutional Monarchy","Federal Theocracy","Military Democracy"], ans:"Sovereign Socialist Secular Democratic Republic", exp:"These are the words in the Indian Constitution's Preamble describing our nation! 🇮🇳", subject:"SST", chapter:"Democracy – Equality and Justice", topic:"Indian Constitution", difficulty:"Hard", classLevel:"7" },
+
+  // ---- SST: State Government ----
+  { q:"The head of a State Government is the:", opts:["Chief Minister","Prime Minister","Governor","President"], ans:"Chief Minister", exp:"The Chief Minister heads the State Government and is the elected leader of the state! 🏛️", subject:"SST", chapter:"State Government", topic:"State Legislature", difficulty:"Easy", classLevel:"7" },
+  { q:"The Governor of a state is appointed by the:", opts:["President","Prime Minister","Chief Minister","Parliament"], ans:"President", exp:"The Governor is appointed by the President of India and is the constitutional head of the state! 🎖️", subject:"SST", chapter:"State Government", topic:"Governor", difficulty:"Medium", classLevel:"7" },
+  { q:"The State Legislature is also called:", opts:["Vidhan Sabha","Lok Sabha","Rajya Sabha","Gram Sabha"], ans:"Vidhan Sabha", exp:"The Vidhan Sabha (Legislative Assembly) is the lower house of the state legislature! 🏛️", subject:"SST", chapter:"State Government", topic:"State Legislature", difficulty:"Easy", classLevel:"7" },
+  { q:"Which is NOT a function of the State Government?", opts:["Defence of the country","Police","Education","Agriculture"], ans:"Defence of the country", exp:"Defence is a Central/Union subject. State governments handle police, education, agriculture etc.! 🛡️", subject:"SST", chapter:"State Government", topic:"Functions of State Government", difficulty:"Medium", classLevel:"7" },
+  { q:"The state of Goa has how many Lok Sabha seats?", opts:["2","5","1","4"], ans:"2", exp:"Goa is a small state with 2 Lok Sabha constituencies – North Goa and South Goa! 🗺️", subject:"SST", chapter:"State Government", topic:"State Legislature", difficulty:"Hard", classLevel:"7" },
+  { q:"A bill becomes a law after being signed by the:", opts:["Governor","Chief Minister","Speaker","President"], ans:"Governor", exp:"At the state level, the Governor gives assent to bills passed by the State Legislature! ✍️", subject:"SST", chapter:"State Government", topic:"Law Making", difficulty:"Hard", classLevel:"7" },
+
+  // ---- SST: Inside Our Earth ----
+  { q:"The outermost layer of the Earth is called the:", opts:["Crust","Mantle","Core","Hydrosphere"], ans:"Crust", exp:"The Crust is the outermost solid layer of the Earth. We live on it! The thinnest layer 🌍", subject:"SST", chapter:"Inside Our Earth", topic:"Layers of the Earth", difficulty:"Easy", classLevel:"7" },
+  { q:"The innermost layer of the Earth is:", opts:["Core","Mantle","Crust","Hydrosphere"], ans:"Core", exp:"The Core is at the centre of the Earth. The inner core is solid, outer core is liquid! 🔥", subject:"SST", chapter:"Inside Our Earth", topic:"Layers of the Earth", difficulty:"Easy", classLevel:"7" },
+  { q:"Rocks formed from cooled lava are called:", opts:["Igneous rocks","Sedimentary rocks","Metamorphic rocks","Limestone only"], ans:"Igneous rocks", exp:"Igneous = 'fire'. Lava cools and solidifies to form igneous rocks like basalt and granite! 🌋", subject:"SST", chapter:"Inside Our Earth", topic:"Types of Rocks", difficulty:"Easy", classLevel:"7" },
+  { q:"Fossils are found in which type of rock?", opts:["Sedimentary","Igneous","Metamorphic","All types"], ans:"Sedimentary", exp:"Fossils form when organisms are buried in sediment layers that turn to sedimentary rock! 🦕", subject:"SST", chapter:"Inside Our Earth", topic:"Types of Rocks", difficulty:"Medium", classLevel:"7" },
+  { q:"The middle layer of the Earth is called:", opts:["Mantle","Crust","Core","Magma layer"], ans:"Mantle", exp:"The Mantle lies between the Crust and the Core. It contains semi-molten rock called magma! 🌐", subject:"SST", chapter:"Inside Our Earth", topic:"Layers of the Earth", difficulty:"Easy", classLevel:"7" },
+  { q:"The deepest mine in the world can reach up to:", opts:["About 4 km","About 40 km","About 400 km","About 4000 km"], ans:"About 4 km", exp:"Even our deepest mines only reach about 4 km – the Earth's crust alone is 35 km thick! 🪨", subject:"SST", chapter:"Inside Our Earth", topic:"Layers of the Earth", difficulty:"Hard", classLevel:"7" },
+
+  // ---- SST: Our Changing Earth ----
+  { q:"Earthquakes occur because of movement of:", opts:["Tectonic plates","Clouds","Oceans","Volcanoes"], ans:"Tectonic plates", exp:"The Earth's crust is made of tectonic plates. When they move and collide, earthquakes occur! 🌍", subject:"SST", chapter:"Our Changing Earth", topic:"Earthquakes", difficulty:"Easy", classLevel:"7" },
+  { q:"A volcano is formed when:", opts:["Magma erupts through the Earth's surface","Plates freeze","Ice melts quickly","Rivers flood plains"], ans:"Magma erupts through the Earth's surface", exp:"Magma (molten rock) from inside the Earth erupts through weak spots to form volcanoes! 🌋", subject:"SST", chapter:"Our Changing Earth", topic:"Volcanoes", difficulty:"Easy", classLevel:"7" },
+  { q:"The instrument used to measure earthquakes is:", opts:["Seismograph","Thermometer","Barometer","Anemometer"], ans:"Seismograph", exp:"A Seismograph measures the intensity and location of earthquakes! 📊", subject:"SST", chapter:"Our Changing Earth", topic:"Earthquakes", difficulty:"Medium", classLevel:"7" },
+  { q:"Meanders are formed by:", opts:["Rivers","Glaciers","Wind","Volcanoes"], ans:"Rivers", exp:"Rivers form curved loops called meanders on flat land as they wind across the surface! 〰️", subject:"SST", chapter:"Our Changing Earth", topic:"River Features", difficulty:"Medium", classLevel:"7" },
+  { q:"Which of these is a depositional feature of rivers?", opts:["Delta","Valley","Gorge","Waterfall"], ans:"Delta", exp:"A delta is formed when a river deposits silt at its mouth before meeting the sea! 🌊", subject:"SST", chapter:"Our Changing Earth", topic:"River Features", difficulty:"Medium", classLevel:"7" },
+  { q:"The Richter scale is used to measure:", opts:["Magnitude of earthquakes","Height of volcanoes","Speed of wind","Depth of ocean"], ans:"Magnitude of earthquakes", exp:"The Richter scale measures the magnitude (strength) of earthquakes from 1 to 10! 📈", subject:"SST", chapter:"Our Changing Earth", topic:"Earthquakes", difficulty:"Hard", classLevel:"7" },
+
+  // ---- SST: Tracing Changes Through Thousand Years ----
+  { q:"Manuscripts in medieval India were usually written on:", opts:["Palm leaves or bark","Paper only","Cloth only","Stone always"], ans:"Palm leaves or bark", exp:"Before paper became common, manuscripts were written on palm leaves or the bark of the birch tree! 🌿", subject:"SST", chapter:"Tracing Changes Through Thousand Years", topic:"Historical Sources", difficulty:"Medium", classLevel:"7" },
+  { q:"The Persian wheel was used for:", opts:["Irrigation","Grinding grain","Measuring time","Warfare"], ans:"Irrigation", exp:"The Persian wheel (rhat) is a water-lifting device driven by animals, used for irrigation! 💧", subject:"SST", chapter:"Tracing Changes Through Thousand Years", topic:"Medieval Technology", difficulty:"Medium", classLevel:"7" },
+  { q:"The word 'Hindustan' originally referred to:", opts:["The region around the Indus river","All of India","South India","The Deccan plateau"], ans:"The region around the Indus river", exp:"'Hindustan' originally referred to the region around the Indus, used by early Islamic writers! 🗺️", subject:"SST", chapter:"Tracing Changes Through Thousand Years", topic:"Historical Geography", difficulty:"Hard", classLevel:"7" },
+  { q:"Historical records written by court historians are called:", opts:["Chronicles","Inscriptions","Coins","Maps"], ans:"Chronicles", exp:"Chronicles are historical accounts written by court historians recording events of their time! 📜", subject:"SST", chapter:"Tracing Changes Through Thousand Years", topic:"Historical Sources", difficulty:"Medium", classLevel:"7" },
+  { q:"Coins are an important source of history because they show:", opts:["Rulers, dates and symbols","Weather patterns","Agricultural practices","Population size"], ans:"Rulers, dates and symbols", exp:"Coins tell us about rulers who issued them, the time period, and the symbols of their kingdoms! 🪙", subject:"SST", chapter:"Tracing Changes Through Thousand Years", topic:"Historical Sources", difficulty:"Easy", classLevel:"7" },
+  { q:"The study of inscriptions is called:", opts:["Epigraphy","Numismatics","Archaeology","Palaeography"], ans:"Epigraphy", exp:"Epigraphy = study of inscriptions carved on stone, metal, or other materials! 🪨", subject:"SST", chapter:"Tracing Changes Through Thousand Years", topic:"Historical Sources", difficulty:"Hard", classLevel:"7" },
+
+  // ---- SST: New Kings and Kingdoms ----
+  { q:"The Chola Empire was located in:", opts:["South India","North India","East India","Central India"], ans:"South India", exp:"The Chola dynasty was one of the longest-ruling dynasties in South India! 🌴", subject:"SST", chapter:"New Kings and Kingdoms", topic:"Regional Kingdoms", difficulty:"Easy", classLevel:"7" },
+  { q:"Prashastis were:", opts:["Inscriptions praising kings","Tax records","Religious texts","Land grants"], ans:"Inscriptions praising kings", exp:"Prashastis were inscriptions composed to praise kings, recording their victories and qualities! 📜", subject:"SST", chapter:"New Kings and Kingdoms", topic:"Historical Sources", difficulty:"Medium", classLevel:"7" },
+  { q:"Land grants given to Brahmanas were called:", opts:["Agrahara","Prashasti","Mandala","Samanta"], ans:"Agrahara", exp:"Agrahara were land grants given to Brahmanas and temples, free from taxes! 🏛️", subject:"SST", chapter:"New Kings and Kingdoms", topic:"Land Grants", difficulty:"Hard", classLevel:"7" },
+  { q:"The Rashtrakutas were rulers of:", opts:["Deccan","Bengal","Punjab","Rajasthan"], ans:"Deccan", exp:"The Rashtrakutas were a powerful dynasty who ruled over the Deccan region of India! 🏯", subject:"SST", chapter:"New Kings and Kingdoms", topic:"Regional Kingdoms", difficulty:"Medium", classLevel:"7" },
+  { q:"Samantas were:", opts:["Subordinate rulers who paid tribute","Priests","Merchants","Tax collectors"], ans:"Subordinate rulers who paid tribute", exp:"Samantas were subordinate kings who paid tribute and provided military service to more powerful kings! ⚔️", subject:"SST", chapter:"New Kings and Kingdoms", topic:"Political Structure", difficulty:"Hard", classLevel:"7" },
+  { q:"Tripartite struggle was fought over control of:", opts:["Kannauj","Panipat","Delhi","Agra"], ans:"Kannauj", exp:"Three kingdoms – Gurjara-Pratiharas, Rashtrakutas and Palas – fought for control of Kannauj! 👑", subject:"SST", chapter:"New Kings and Kingdoms", topic:"Regional Kingdoms", difficulty:"Hard", classLevel:"7" },
 ];
-
-// =====================================================
 // SECTION 3: AI TUTOR KNOWLEDGE BASE (rule-based)
 // =====================================================
 
@@ -265,15 +504,6 @@ function updateHomeStats() {
 // SECTION 6: PAGE NAVIGATION
 // =====================================================
 
-function showPage(id) {
-  document.querySelectorAll('.hero, .page').forEach(el => el.style.display = 'none');
-  const el = document.getElementById(id);
-  if (el) el.style.display = 'block';
-  if (id === 'page-progress') renderProgress();
-  if (id === 'page-tutor') { checkApiKeyBanner(); renderKeyBadge(); }
-  window.scrollTo(0, 0);
-}
-
 // =====================================================
 // SECTION 7: AI TUTOR – Multi-Provider (Claude / ChatGPT / Gemini)
 // =====================================================
@@ -319,21 +549,34 @@ function getApiKey(p)     { return localStorage.getItem('studyBuddyKey_' + (p ||
 function setApiKey(p, k)  { localStorage.setItem('studyBuddyKey_' + p, k.trim()); }
 function clearApiKey(p)   { localStorage.removeItem('studyBuddyKey_' + (p || getProvider())); }
 
-// ---- Shared system prompt ----
-const SYSTEM_PROMPT = `You are "Study Buddy", a friendly and encouraging AI tutor for Class 7 CBSE students (age 12-13) in India.
+// ---- Shared system prompt (dynamic based on active class) ----
+function getSystemPrompt() {
+  const cls = getActiveClass();
+  const classDesc = cls ? `Class ${cls} CBSE` : 'school';
+  const ageDesc   = cls ? (() => {
+    const n = parseInt(cls);
+    if (!isNaN(n)) return `(age ${n + 5}–${n + 6})`;
+    return '';
+  })() : '';
+  const subjects = getAllSubjects();
+  const subjectList = subjects.length
+    ? subjects.join(', ')
+    : 'Mathematics, Science, English, Social Science';
+  return `You are "Study Buddy", a friendly and encouraging AI tutor for ${classDesc} students ${ageDesc} in India.
 
 Your job:
 - Explain concepts clearly in very simple, kid-friendly language
 - Use emojis to make answers fun and engaging 🌟
 - Keep answers concise but complete (100-200 words max)
 - Use bullet points or numbered steps when explaining processes
-- Always relate to NCERT Class 7 syllabus topics
+- Always relate to NCERT ${classDesc} syllabus topics
 - Be encouraging and positive — say things like "Great question!" or "You've got this! 💪"
 - Use relevant Indian examples when possible (e.g., rupees for maths, Indian history for SST)
 - If the question is off-topic or inappropriate, gently redirect to studies
 
-Subjects: Mathematics, Science, English, Social Science (History, Geography, Civics)
+Subjects: ${subjectList}
 Format: readable HTML only — use <b> for bold, <br> for line breaks. No markdown.`;
+}
 
 // ---- Show setup panel ----
 function checkApiKeyBanner() {
@@ -418,7 +661,7 @@ function submitApiKey(provider) {
   checkApiKeyBanner();
   renderKeyBadge();
   showToast(`✅ ${cfg.name} key saved! AI is now active 🤖`);
-  addChatMsg(`🎉 <b>${cfg.logo} ${cfg.name}</b> is now active! Ask me anything about your Class 7 subjects! 📚`, 'bot');
+  addChatMsg(`🎉 <b>${cfg.logo} ${cfg.name}</b> is now active! Ask me anything about your ${getActiveClass() ? `Class ${getActiveClass()}` : ''} subjects! 📚`, 'bot');
 }
 
 // ---- Main ask dispatcher ----
@@ -482,7 +725,7 @@ async function askClaude(question, apiKey) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 600,
-        system: SYSTEM_PROMPT,
+        system: getSystemPrompt(),
         messages: chatHistory.slice(-10)
       })
     });
@@ -499,7 +742,7 @@ async function askClaude(question, apiKey) {
 async function askOpenAI(question, apiKey) {
   chatHistory.push({ role: 'user', content: question });
   const messages = [
-    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: getSystemPrompt() },
     ...chatHistory.slice(-10)
   ];
   try {
@@ -535,7 +778,7 @@ async function askGemini(question, apiKey) {
   const contents = geminiHistory.length
     ? [...geminiHistory, { role: 'user', parts: [{ text: question }] }]
     : [
-        { role: 'user',  parts: [{ text: SYSTEM_PROMPT + '\n\nNow answer this question: ' + question }] }
+        { role: 'user',  parts: [{ text: getSystemPrompt() + '\n\nNow answer this question: ' + question }] }
       ];
 
   chatHistory.push({ role: 'user', content: question });
@@ -617,23 +860,26 @@ function getAllQuestions() {
   return [...QUESTION_BANK, ...csvQuestions];
 }
 
-// Returns sorted unique list of subjects across all questions
+// Returns class-filtered question pool (the one used by quiz/daily/mock)
+function getActiveQuestions() {
+  return getClassFilteredQuestions();
+}
+
+// Returns sorted unique list of subjects across active-class questions
 function getAllSubjects() {
-  const all = getAllQuestions();
+  const all = getActiveQuestions();
   const subjects = [...new Set(all.map(q => q.subject).filter(Boolean))];
-  // Ensure built-in subjects appear first in a predictable order
   const preferred = ['Math','Science','English','SST'];
-  const sorted = [
+  return [
     ...preferred.filter(s => subjects.includes(s)),
     ...subjects.filter(s => !preferred.includes(s)).sort()
   ];
-  return sorted;
 }
 
-// Returns chapters for a given subject (or ALL if subject === '__all__')
+// Returns chapters for a given subject from active-class questions
 function getChaptersForSubject(subject) {
   if (subject === '__all__') return ['All Chapters'];
-  const all = getAllQuestions();
+  const all = getActiveQuestions();
   const chapters = [...new Set(all.filter(q => q.subject === subject).map(q => q.chapter).filter(Boolean))];
   return chapters.length ? chapters : ['General'];
 }
@@ -741,7 +987,7 @@ function selectChapter(ch, btn) {
 
 // Populate the four filter <select> dropdowns based on subject+chapter pool
 function populateFilterDropdowns() {
-  const allQ = getAllQuestions();
+  const allQ = getActiveQuestions();
   let pool = allQ;
   if (selectedSubject !== '__all__') pool = pool.filter(q => q.subject === selectedSubject);
   const isAllChap = !selectedChapter || selectedChapter === '__all__' || selectedChapter === 'All Chapters';
@@ -756,13 +1002,18 @@ function populateFilterDropdowns() {
     topicSel.onchange = updateFilterCountBadge;
   }
 
-  // Classes
-  const classes = [...new Set(pool.map(q => q.classLevel).filter(Boolean))].sort();
-  const classSel = document.getElementById('filter-class');
-  if (classSel) {
-    classSel.innerHTML = `<option value="">All Classes</option>` +
-      classes.map(c => `<option value="${c}">Class ${c}</option>`).join('');
-    classSel.onchange = updateFilterCountBadge;
+  // Classes — only show if no active class is set (multi-class mode)
+  const classFilterGroup = document.getElementById('filter-class-group');
+  const activeClass = getActiveClass();
+  if (classFilterGroup) classFilterGroup.style.display = activeClass ? 'none' : '';
+  if (!activeClass) {
+    const classes = [...new Set(pool.map(q => q.classLevel).filter(Boolean))].sort();
+    const classSel = document.getElementById('filter-class');
+    if (classSel) {
+      classSel.innerHTML = `<option value="">All Classes</option>` +
+        classes.map(c => `<option value="${c}">Class ${c}</option>`).join('');
+      classSel.onchange = updateFilterCountBadge;
+    }
   }
 
   // Question types
@@ -781,8 +1032,7 @@ function populateFilterDropdowns() {
 
 // Get filtered pool using the four <select> dropdowns
 function getFilteredPool() {
-  const allQ = getAllQuestions();
-  let pool   = allQ;
+  let pool = getActiveQuestions();
 
   // Subject filter
   if (selectedSubject !== '__all__') pool = pool.filter(q => q.subject === selectedSubject);
@@ -852,7 +1102,7 @@ function generateQuiz() {
 
   // If strict pool is smaller than requested count, pad with same-subject questions
   if (finalPool.length < count) {
-    const allQ       = getAllQuestions();
+    const allQ       = getActiveQuestions();
     const isAllChap  = !selectedChapter || selectedChapter === '__all__' || selectedChapter === 'All Chapters';
     const isAllSubj  = selectedSubject === '__all__';
 
@@ -918,7 +1168,7 @@ function selectDailySubject(subj, btn) {
 
 function generateDailyPractice() {
   quizMode = 'daily';
-  const allQ = getAllQuestions();
+  const allQ = getActiveQuestions();
   let pool = dailySubjectFilter === '__all__'
     ? allQ
     : allQ.filter(q => q.subject === dailySubjectFilter);
@@ -978,8 +1228,13 @@ function renderQuestion() {
     <div class="q-text">${q.q}</div>
   `;
 
+  // Shuffle options, track correct answer by text
+  const shuffled = shuffle([...q.opts]);
+  q._shuffled = shuffled;
+  q._correctText = typeof q.ans === 'string' ? q.ans : q.opts[q.ans]; // support both formats
+
   const labels = ['A','B','C','D'];
-  document.getElementById('options-grid').innerHTML = q.opts.map((opt, i) =>
+  document.getElementById('options-grid').innerHTML = shuffled.map((opt, i) =>
     `<button class="option-btn" onclick="checkAnswer(${i})" id="opt-${i}">
       <span class="opt-label">${labels[i]}</span> ${opt}
     </button>`
@@ -987,13 +1242,16 @@ function renderQuestion() {
 }
 
 function checkAnswer(chosen) {
-  const q = currentQuizQuestions[currentQIndex];
-  const isCorrect = chosen === q.ans;
+  const q           = currentQuizQuestions[currentQIndex];
+  const correctText = q._correctText;
+  const chosenText  = q._shuffled[chosen];
+  const correctIdx  = q._shuffled.indexOf(correctText);
+  const isCorrect   = chosenText === correctText;
 
   document.querySelectorAll('.option-btn').forEach((btn, i) => {
     btn.disabled = true;
-    if (i === q.ans)              btn.classList.add('correct');
-    if (i === chosen && !isCorrect) btn.classList.add('wrong');
+    if (i === correctIdx)            btn.classList.add('correct');
+    if (i === chosen && !isCorrect)  btn.classList.add('wrong');
   });
 
   const fb = document.getElementById('quiz-feedback');
@@ -1010,7 +1268,7 @@ function checkAnswer(chosen) {
     fb.innerHTML = `<div class="fb-result">✅ Correct! Great job! 🌟</div>${extraInfo}`;
     showToast(getEncouragement(true));
   } else {
-    fb.innerHTML = `<div class="fb-result">❌ The answer was <b>${q.opts[q.ans]}</b></div>${extraInfo}`;
+    fb.innerHTML = `<div class="fb-result">❌ The answer was <b>${correctText}</b></div>${extraInfo}`;
     showToast(getEncouragement(false));
   }
   fb.style.display = 'block';
@@ -1077,15 +1335,18 @@ function renderDailyQuestion() {
   document.getElementById('daily-next-btn').style.display = 'none';
   document.getElementById('daily-result').style.display = 'none';
 
-  const metaPills = buildMetaPills(q);
-
   document.getElementById('daily-question-card').innerHTML = `
-    <div class="q-meta-row">${metaPills}</div>
+    <div class="q-meta-row">${buildMetaPills(q)}</div>
     <div class="q-text">${q.q}</div>
   `;
 
+  // Shuffle options, track correct answer by text
+  const shuffled = shuffle([...q.opts]);
+  q._shuffled = shuffled;
+  q._correctText = typeof q.ans === 'string' ? q.ans : q.opts[q.ans];
+
   const labels = ['A','B','C','D'];
-  document.getElementById('daily-options-grid').innerHTML = q.opts.map((opt, i) =>
+  document.getElementById('daily-options-grid').innerHTML = shuffled.map((opt, i) =>
     `<button class="option-btn" onclick="checkDailyAnswer(${i})" id="dopt-${i}">
       <span class="opt-label">${labels[i]}</span> ${opt}
     </button>`
@@ -1093,12 +1354,15 @@ function renderDailyQuestion() {
 }
 
 function checkDailyAnswer(chosen) {
-  const q = currentQuizQuestions[dailyIndex];
-  const isCorrect = chosen === q.ans;
+  const q           = currentQuizQuestions[dailyIndex];
+  const correctText = q._correctText;
+  const chosenText  = q._shuffled[chosen];
+  const correctIdx  = q._shuffled.indexOf(correctText);
+  const isCorrect   = chosenText === correctText;
 
   document.querySelectorAll('#daily-options-grid .option-btn').forEach((btn, i) => {
     btn.disabled = true;
-    if (i === q.ans)              btn.classList.add('correct');
+    if (i === correctIdx)           btn.classList.add('correct');
     if (i === chosen && !isCorrect) btn.classList.add('wrong');
   });
 
@@ -1115,7 +1379,7 @@ function checkDailyAnswer(chosen) {
     dailyScore++;
     fb.innerHTML = `<div class="fb-result">✅ Correct! 🌟</div>${extraInfo}`;
   } else {
-    fb.innerHTML = `<div class="fb-result">❌ Answer: <b>${q.opts[q.ans]}</b></div>${extraInfo}`;
+    fb.innerHTML = `<div class="fb-result">❌ Answer: <b>${correctText}</b></div>${extraInfo}`;
   }
   fb.style.display = 'block';
   document.getElementById('daily-next-btn').style.display = 'block';
@@ -1530,7 +1794,7 @@ function showCsvPreview(filename, result) {
     <tr>
       <td>${q.questionId || i+1}</td>
       <td title="${q.q}">${q.q.slice(0,55)}${q.q.length>55?'…':''}</td>
-      <td>${q.opts[q.ans]}</td>
+      <td>${typeof q.ans === "string" ? q.ans : (q.opts[q.ans] || q.ans)}</td>
       <td><span class="subj-tag">${q.subject}</span></td>
       <td>${q.chapter}</td>
       <td>${q.topic || '—'}</td>
@@ -1602,6 +1866,7 @@ function saveCsvBank(filename) {
   document.getElementById('csv-preview-area').innerHTML = '';
   showToast(`✅ "${name}" saved! ${questions.length} questions added.`);
   renderCsvBanksList();
+  renderClassSelectorGrid(true); // refresh class cards in case new classes were added
   renderSubjectTabs('quiz-subject-tabs', selectedSubject, 'selectSubject', true);
 }
 
@@ -1655,7 +1920,7 @@ function previewBankQuestions(bankId) {
     <tr>
       <td>${q.questionId || i+1}</td>
       <td title="${q.q}">${q.q.slice(0,55)}${q.q.length>55?'…':''}</td>
-      <td>${q.opts[q.ans]}</td>
+      <td>${typeof q.ans === "string" ? q.ans : (q.opts[q.ans] || q.ans)}</td>
       <td><span class="subj-tag">${q.subject}</span></td>
       <td>${q.chapter}</td>
       <td>${q.topic||'—'}</td>
@@ -1715,27 +1980,57 @@ function downloadSampleCsv() {
 function showPage(id) {
   document.querySelectorAll('.hero, .page').forEach(el => el.style.display = 'none');
   const el = document.getElementById(id);
-  if (el) el.style.display = 'block';
+  if (el) el.style.display = id === 'page-home' ? 'block' : 'block';
   if (id === 'page-progress') renderProgress();
-  if (id === 'page-tutor')    { checkApiKeyBanner(); renderKeyBadge(); }
+  if (id === 'page-tutor')    { checkApiKeyBanner(); renderKeyBadge(); injectClassBanner('page-tutor'); }
   if (id === 'page-quiz') {
     document.getElementById('quiz-setup').style.display = 'block';
     document.getElementById('quiz-play').style.display = 'none';
     document.getElementById('quiz-result').style.display = 'none';
     document.getElementById('quiz-filters').style.display = 'none';
     document.getElementById('quiz-start-row').style.display = 'none';
+    injectClassBanner('page-quiz');
     renderSubjectTabs('quiz-subject-tabs', selectedSubject, 'selectSubject', true);
     renderQuizChapters();
   }
-  if (id === 'page-csv') renderCsvBanksList();
+  if (id === 'page-daily')    injectClassBanner('page-daily');
+  if (id === 'page-mock')     injectClassBanner('page-mock');
+  if (id === 'page-csv') { renderCsvBanksList(); }
   window.scrollTo(0, 0);
 }
 
+// Inject a small "Active: Class X" banner at top of content pages with a Switch link
+function injectClassBanner(pageId) {
+  const page = document.getElementById(pageId);
+  if (!page) return;
+  const existing = page.querySelector('.active-class-banner');
+  if (existing) existing.remove();
+  const cls = getActiveClass();
+  const banner = document.createElement('div');
+  banner.className = 'active-class-banner';
+  banner.innerHTML = cls
+    ? `🎓 Active: <span class="acb-tag">Class ${cls}</span>
+       <button class="acb-change" onclick="showClassSelector(true)">Switch Class</button>`
+    : `🌈 Showing all classes — <button class="acb-change" onclick="showClassSelector(true)">Select a class</button>`;
+  // Insert after page-header
+  const header = page.querySelector('.page-header');
+  if (header) header.after(banner);
+  else page.insertBefore(banner, page.firstChild);
+}
+
 function init() {
+  updateClassUI();
   updateNavScore();
   updateHomeStats();
-  const subjects = getAllSubjects();
-  selectedSubject = subjects[0] || 'Math';
+  const cls = getActiveClass();
+  if (!cls) {
+    // First time — show class selector
+    showClassSelector(false);
+  } else {
+    const subjects = getAllSubjects();
+    selectedSubject = subjects[0] || 'Math';
+    showPage('page-home');
+  }
 }
 
 window.addEventListener('DOMContentLoaded', init);

@@ -1,5 +1,5 @@
 /* =====================================================
-   AI Study Buddy – Class 7 CBSE
+   AI Study Buddy – Multi-Class Edition
    style.css – Bright, playful, kid-friendly UI
    ===================================================== */
 
@@ -579,6 +579,11 @@ body {
 }
 .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 
+.quiz-pad-notice {
+  background: #fef9c3; border: 1px solid #fcd34d; border-radius: 10px;
+  padding: 10px 16px; font-size: 13px; color: #92400e; margin-bottom: 12px;
+}
+
 /* ===================== QUIZ FILTERS ===================== */
 .quiz-filters {
   background: #f8f9ff; border: 2px solid #e0e7ff;
@@ -690,3 +695,131 @@ body {
 /* Animations */
 @keyframes fadeIn { from { opacity:0; transform:translateY(16px);} to { opacity:1; transform:none; } }
 .page { animation: fadeIn .3s ease; }
+
+/* ===================== CLASS SELECTOR PAGE ===================== */
+#page-class-select {
+  min-height: 100vh;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: linear-gradient(135deg, #f0f4ff 0%, #ede9fe 100%);
+}
+.class-select-wrap {
+  max-width: 680px; width: 100%;
+  text-align: center;
+  animation: fadeIn .4s ease;
+}
+.class-select-mascot { font-size: 72px; margin-bottom: 12px; line-height: 1; }
+.class-select-title {
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 32px; font-weight: 800;
+  color: var(--clr-primary); margin-bottom: 8px;
+}
+.class-select-sub {
+  font-size: 16px; color: var(--clr-muted);
+  margin-bottom: 32px; line-height: 1.6;
+}
+.class-select-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 16px; margin-bottom: 28px;
+}
+.class-card {
+  background: white;
+  border: 2px solid #e0e7ff;
+  border-radius: 20px;
+  padding: 24px 12px 20px;
+  cursor: pointer;
+  transition: all .2s;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 8px;
+  box-shadow: 0 2px 12px rgba(79,70,229,.08);
+  position: relative;
+}
+.class-card:hover {
+  border-color: var(--clr-primary);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(79,70,229,.18);
+}
+.class-card.active-class {
+  border-color: var(--clr-primary);
+  background: linear-gradient(135deg, #eef2ff, #ede9fe);
+  box-shadow: 0 6px 24px rgba(79,70,229,.22);
+}
+.class-card-num {
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 36px; font-weight: 800;
+  color: var(--clr-primary); line-height: 1;
+}
+.class-card-label {
+  font-size: 13px; font-weight: 700;
+  color: var(--clr-muted); text-transform: uppercase; letter-spacing: .5px;
+}
+.class-card-count {
+  font-size: 11px; color: #a5b4fc;
+  background: #eef2ff; border-radius: 20px;
+  padding: 2px 8px;
+}
+.class-card-active-badge {
+  position: absolute; top: -8px; right: -8px;
+  background: var(--clr-green); color: white;
+  border-radius: 50%; width: 22px; height: 22px;
+  font-size: 12px; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 6px rgba(16,185,129,.4);
+}
+.class-select-hint {
+  font-size: 13px; color: var(--clr-muted);
+  display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: center; gap: 4px;
+}
+.link-btn {
+  background: none; border: none; color: var(--clr-primary);
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  text-decoration: underline; padding: 0;
+}
+.link-btn:hover { color: var(--clr-secondary); }
+
+/* ===================== CLASS SWITCH BUTTON (top nav) ===================== */
+.class-switch-btn {
+  background: rgba(255,255,255,.15);
+  border: 1.5px solid rgba(255,255,255,.35);
+  color: white; border-radius: 20px;
+  padding: 5px 12px; font-size: 12px; font-weight: 700;
+  cursor: pointer; transition: all .2s;
+  font-family: 'Nunito', sans-serif;
+  white-space: nowrap;
+}
+.class-switch-btn:hover {
+  background: rgba(255,255,255,.28);
+  border-color: rgba(255,255,255,.6);
+}
+
+/* ===================== CLASS FILTER BANNER (inside pages) ===================== */
+.active-class-banner {
+  background: linear-gradient(90deg, #eef2ff, #ede9fe);
+  border: 1.5px solid #c7d2fe;
+  border-radius: 14px; padding: 10px 16px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; font-weight: 700; color: var(--clr-primary);
+  margin-bottom: 16px; flex-wrap: wrap;
+}
+.active-class-banner .acb-tag {
+  background: var(--clr-primary); color: white;
+  border-radius: 20px; padding: 3px 12px;
+  font-size: 13px;
+}
+.active-class-banner .acb-change {
+  margin-left: auto; background: none; border: 1.5px solid var(--clr-primary);
+  color: var(--clr-primary); border-radius: 20px;
+  padding: 3px 10px; font-size: 12px; font-weight: 700;
+  cursor: pointer; font-family: 'Nunito', sans-serif;
+}
+.active-class-banner .acb-change:hover { background: var(--clr-primary); color: white; }
+
+@media (max-width: 480px) {
+  .class-select-title { font-size: 24px; }
+  .class-select-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .class-card-num { font-size: 28px; }
+  .class-switch-btn { font-size: 11px; padding: 4px 8px; }
+}
