@@ -29,7 +29,7 @@
    ===================================================== */
 
 const SUPABASE_URL  = 'https://rgxtuyspvtfmbofbymrc.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJneHR1eXNwdnRmbWJvZmJ5bXJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NjI4OTgsImV4cCI6MjA4OTEzODg5OH0.WT0d5P1_-o7gnE4AFZzNQGRJQIqD8Y8aQ3mDjYsVpQ8';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJneHR1eXNwdnRmbWJvZmJ5bXJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NDM0MzksImV4cCI6MjA4OTExOTQzOX0.VXjJXOsSdCkwVWZOs78AwkkXKw558soqw1foozbFZus';
 
 // =====================================================
 // APP BASE URL — set this to your deployed app URL.
@@ -283,6 +283,7 @@ async function saveBranding(formData) {
     await flushSyncQueue();
   }
   showToast('💾 ' + t('admin_save'));
+  return { ok: true };
 }
 
 /* =====================================================
@@ -956,134 +957,204 @@ async function registerInstitute(formData) {
 //   2. #access_token=... in hash (when Site URL is used as fallback)
 // We handle both.
 async function finaliseAdminRegistration() {
-  const params  = new URLSearchParams(window.location.search);
-  const hash    = new URLSearchParams(window.location.hash.replace('#', ''));
-  const isSetup = params.get('setup') === '1';
+  const params   = new URLSearchParams(window.location.search);
+  const hash     = new URLSearchParams(window.location.hash.replace('#',''));
+  const isSetup  = params.get('setup') === '1';
   const hasToken = hash.get('access_token') || params.get('access_token');
 
-  // Only run if this looks like a magic link landing
   if (!isSetup && !hasToken) return;
 
   const client = sb();
   if (!client) return;
 
-  // If token arrived in hash, exchange it for a session first
-  if (hasToken && !isSetup) {
+  // Exchange hash token for session if Supabase used the fallback redirect
+  if (hasToken) {
     try {
-      const { error } = await client.auth.setSession({
-        access_token:  hash.get('access_token') || params.get('access_token'),
+      await client.auth.setSession({
+        access_token:  hash.get('access_token')  || params.get('access_token'),
         refresh_token: hash.get('refresh_token') || params.get('refresh_token') || '',
       });
-      if (error) { console.warn('setSession error:', error.message); return; }
-    } catch(e) { console.warn('setSession failed:', e.message); return; }
+    } catch(e) { console.warn('setSession failed:', e.message); }
   }
 
-  // Now get the session (works for both flows)
   const { data: { session } } = await client.auth.getSession();
   if (!session) return;
 
   const instId = session.user.user_metadata?.institute_id;
-  if (!instId) {
-    // No institute_id in metadata — user already set up or came via direct login
-    await onSignIn(session.user);
-    return;
+
+  if (instId) {
+    // Link this user to the institute as admin (idempotent — safe to call multiple times)
+    await client.rpc('finalise_admin_registration', { p_institute_id: instId });
   }
 
-  const { data } = await client.rpc('finalise_admin_registration', {
-    p_institute_id: instId
-  });
-
-  // Clean URL — remove token fragments and ?setup=1
+  // Clean URL — strip tokens and ?setup=1
   const clean = new URL(window.location.href);
   clean.searchParams.delete('setup');
   clean.hash = '';
   window.history.replaceState({}, '', clean.toString());
 
-  // Reload profile so admin cards appear
+  // Load profile (sets currentProfile, shows admin cards)
   await onSignIn(session.user);
 
-  if (data?.ok) {
-    // Show the admin setup screen — must complete before students can use the link
-    showToast('🎉 Admin account activated!');
-    setTimeout(() => showAdminSetupWelcome(data.slug || instId), 600);
-  }
+  // Show admin setup screen — always on a setup landing, first time or not
+  // Small delay so DOM/cards have time to render
+  setTimeout(() => {
+    const slug = localStorage.getItem('studyBuddy_instituteSlug')
+              || params.get('institute')
+              || '';
+    showAdminSetupWelcome(slug);
+  }, 400);
 }
 
-// Shown to admin immediately after clicking magic link for the first time.
-// They must complete required setup before students can use the school link.
-function showAdminSetupWelcome(slugOrId) {
-  // Remove any existing overlay
+// Full-screen school setup modal — shown immediately after admin clicks magic link.
+// Admin must complete mandatory fields before the school link is shared.
+function showAdminSetupWelcome(slug) {
   document.getElementById('admin-setup-welcome')?.remove();
 
-  const slug = localStorage.getItem('studyBuddy_instituteSlug') || slugOrId || '';
-  const schoolUrl = slug
-    ? APP_BASE_URL + '?institute=' + slug
-    : '';
+  const schoolUrl = slug ? APP_BASE_URL + '?institute=' + slug : '';
+  const brand     = getBrandCache() || {};
 
   const overlay = document.createElement('div');
   overlay.id = 'admin-setup-welcome';
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,10,40,.8);display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,10,40,.85);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;';
   overlay.innerHTML = `
-    <div style="background:#fff;border-radius:20px;padding:36px 28px;max-width:480px;width:100%;box-shadow:0 8px 40px rgba(79,70,229,.35);overflow-y:auto;max-height:90vh;">
-      <div style="text-align:center;margin-bottom:20px;">
-        <div style="font-size:52px;margin-bottom:8px;">🎉</div>
-        <h2 style="font-family:'Baloo 2',cursive;font-size:22px;font-weight:800;color:var(--clr-primary);margin-bottom:6px;">
-          Welcome, Admin!
+    <div style="background:#fff;border-radius:20px;padding:32px 28px;max-width:520px;width:100%;margin:auto;box-shadow:0 8px 40px rgba(79,70,229,.4);">
+
+      <!-- Header -->
+      <div style="text-align:center;margin-bottom:24px;">
+        <div style="font-size:48px;margin-bottom:8px;">🎉</div>
+        <h2 style="font-family:'Baloo 2',cursive;font-size:24px;font-weight:800;color:var(--clr-primary);margin-bottom:6px;">
+          Welcome! Complete School Setup
         </h2>
         <p style="font-size:13px;color:#6b7280;line-height:1.6;">
-          Your account is active. Complete these steps to go live.
+          Fill in your school details below. Your school URL will be revealed once you save.
         </p>
       </div>
 
-      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
-        <!-- Step 1 -->
-        <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:14px 16px;">
-          <div style="font-weight:800;font-size:14px;color:#065f46;margin-bottom:4px;">✅ Step 1 — Account Active</div>
-          <div style="font-size:12px;color:#047857;">You're signed in as admin. Your institute is registered.</div>
+      <!-- Setup form -->
+      <div style="display:flex;flex-direction:column;gap:14px;">
+
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px;">
+            School / Institute Name <span style="color:#ef4444;">*</span>
+          </label>
+          <input id="setup-school-name" type="text" placeholder="e.g. Green Valley School"
+            value="${(brand.name||'').replace(/"/g,'&quot;')}"
+            style="width:100%;border:1.5px solid #c7d2fe;border-radius:10px;padding:10px 13px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
         </div>
 
-        <!-- Step 2 -->
-        <div style="background:#eef2ff;border:1.5px solid #c7d2fe;border-radius:12px;padding:14px 16px;">
-          <div style="font-weight:800;font-size:14px;color:var(--clr-primary);margin-bottom:4px;">⚙️ Step 2 — Complete School Setup <span style="color:#ef4444;font-size:11px;font-weight:700;background:#fee2e2;border-radius:6px;padding:1px 7px;margin-left:4px;">Required</span></div>
-          <div style="font-size:12px;color:#4338ca;margin-bottom:10px;">Go to Admin Panel → set school name, colours, and upload your first question bank.</div>
-          <button onclick="document.getElementById('admin-setup-welcome').remove();if(typeof showPage==='function')showPage('page-admin');"
-                  style="background:var(--clr-primary);color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">
-            Open Admin Panel ⚙️
-          </button>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px;">Primary Colour</label>
+            <input id="setup-primary-color" type="color" value="${brand.primary_color||'#4f46e5'}"
+              style="width:100%;height:42px;border:1.5px solid #c7d2fe;border-radius:10px;cursor:pointer;padding:4px;">
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px;">Secondary Colour</label>
+            <input id="setup-secondary-color" type="color" value="${brand.secondary_color||'#7c3aed'}"
+              style="width:100%;height:42px;border:1.5px solid #c7d2fe;border-radius:10px;cursor:pointer;padding:4px;">
+          </div>
         </div>
 
-        <!-- Step 3 -->
-        <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px;padding:14px 16px;">
-          <div style="font-weight:800;font-size:14px;color:#9a3412;margin-bottom:4px;">📂 Step 3 — Upload Question Bank</div>
-          <div style="font-size:12px;color:#c2410c;margin-bottom:10px;">Go to Question Bank → upload your CSV or load sample questions.</div>
-          <button onclick="document.getElementById('admin-setup-welcome').remove();if(typeof showPage==='function')showPage('page-csv');"
-                  style="background:#ea580c;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">
-            Open Question Bank 📂
-          </button>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px;">Address</label>
+          <input id="setup-address" type="text" placeholder="123 Main St, City"
+            value="${(brand.address||'').replace(/"/g,'&quot;')}"
+            style="width:100%;border:1.5px solid #c7d2fe;border-radius:10px;padding:10px 13px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
         </div>
 
-        <!-- Step 4 — share URL -->
-        ${schoolUrl ? `
-        <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:14px 16px;">
-          <div style="font-weight:800;font-size:14px;color:#065f46;margin-bottom:4px;">🔗 Step 4 — Share School URL</div>
-          <div style="font-size:12px;color:#047857;margin-bottom:8px;">Share this link with students and teachers:</div>
-          <div style="font-family:monospace;font-size:11px;background:#fff;border:1px solid #bbf7d0;border-radius:6px;padding:6px 10px;word-break:break-all;color:#065f46;margin-bottom:8px;">${schoolUrl}</div>
-          <button onclick="navigator.clipboard?.writeText('${schoolUrl}').then(()=>this.textContent='✅ Copied!').catch(()=>{})"
-                  style="background:#10b981;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">
-            📋 Copy URL
-          </button>
-        </div>` : ''}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px;">Phone</label>
+            <input id="setup-phone" type="tel" placeholder="+91 98765 43210"
+              value="${(brand.phone||'').replace(/"/g,'&quot;')}"
+              style="width:100%;border:1.5px solid #c7d2fe;border-radius:10px;padding:10px 13px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px;">School Email</label>
+            <input id="setup-email" type="email" placeholder="info@myschool.in"
+              value="${(brand.email||'').replace(/"/g,'&quot;')}"
+              style="width:100%;border:1.5px solid #c7d2fe;border-radius:10px;padding:10px 13px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px;">Logo URL <span style="font-weight:400;color:#9ca3af;">(optional)</span></label>
+          <input id="setup-logo" type="url" placeholder="https://…/logo.png"
+            value="${(brand.logo_url||'').replace(/"/g,'&quot;')}"
+            style="width:100%;border:1.5px solid #c7d2fe;border-radius:10px;padding:10px 13px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
+        </div>
+
+        <!-- Error msg -->
+        <div id="setup-error" style="display:none;background:#fef2f2;border:1.5px solid #fca5a5;border-radius:8px;padding:10px 14px;font-size:13px;color:#b91c1c;"></div>
+
+        <!-- Save button -->
+        <button id="setup-save-btn" onclick="saveSchoolSetup()"
+          style="background:linear-gradient(135deg,var(--clr-primary),var(--clr-secondary));color:#fff;border:none;border-radius:12px;padding:14px;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;width:100%;margin-top:4px;">
+          💾 Save & Reveal School URL
+        </button>
+
+        <p style="text-align:center;font-size:12px;color:#9ca3af;">
+          You can update these details anytime from the <b>⚙️ Admin Panel</b>
+        </p>
       </div>
-
-      <button onclick="document.getElementById('admin-setup-welcome').remove();revealSchoolUrl();"
-              style="width:100%;padding:12px;border-radius:10px;border:2px solid #c7d2fe;background:#fff;color:var(--clr-primary);font-weight:800;font-size:14px;cursor:pointer;font-family:inherit;">
-        Continue to App →
-      </button>
     </div>`;
   document.body.appendChild(overlay);
 }
 
+// Called when admin clicks Save in the setup modal
+async function saveSchoolSetup() {
+  const name    = document.getElementById('setup-school-name')?.value?.trim();
+  const errEl   = document.getElementById('setup-error');
+  const saveBtn = document.getElementById('setup-save-btn');
+
+  if (!name) {
+    errEl.textContent = 'School name is required.';
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+  saveBtn.textContent = '⏳ Saving…';
+  saveBtn.disabled    = true;
+
+  const formData = {
+    name,
+    primary_color:   document.getElementById('setup-primary-color')?.value  || '#4f46e5',
+    secondary_color: document.getElementById('setup-secondary-color')?.value || '#7c3aed',
+    address:  document.getElementById('setup-address')?.value?.trim()  || '',
+    phone:    document.getElementById('setup-phone')?.value?.trim()    || '',
+    email:    document.getElementById('setup-email')?.value?.trim()    || '',
+    logo_url: document.getElementById('setup-logo')?.value?.trim()    || '',
+  };
+
+  const result = await saveBranding(formData);
+
+  if (result && result.error) {
+    errEl.textContent   = result.error;
+    errEl.style.display = 'block';
+    saveBtn.textContent = '💾 Save & Reveal School URL';
+    saveBtn.disabled    = false;
+    return;
+  }
+
+  // Remove setup overlay
+  document.getElementById('admin-setup-welcome')?.remove();
+
+  // Apply branding live
+  applyBranding({ ...formData });
+  showToast('✅ School setup saved!');
+
+  // Reveal the school URL in a prominent banner
+  revealSchoolUrl();
+
+  // Navigate to admin panel for further customisation
+  setTimeout(() => {
+    if (typeof showPage === 'function') showPage('page-admin');
+  }, 800);
+}
+
 window.showAdminSetupWelcome = showAdminSetupWelcome;
+window.saveSchoolSetup       = saveSchoolSetup;
 
 // Called when admin dismisses the setup welcome modal.
 // Shows a persistent URL banner in the app so admin can copy it anytime.
