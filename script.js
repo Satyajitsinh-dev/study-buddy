@@ -4124,6 +4124,7 @@ function submitExam() {
   const cfg = examConfig;
   let totalScore = 0, totalMax = 0;
   const breakdown = [];
+  const answersLog = [];  // for persistence and teacher review
 
   cfg.sections.forEach(sec => {
     let secScore = 0, secMax = sec.count * sec.marksEach;
@@ -4135,17 +4136,23 @@ function submitExam() {
         const chosen = examAnswers[sec.id + '-' + i];
         const correct = q._examCorrect;
         const chosenText = (q._examShuffled || q.opts)[chosen];
-        if (chosenText === correct) { secScore += sec.marksEach; updateProgress(q.subject, true); }
+        const isCorrect = chosenText === correct;
+        if (isCorrect) { secScore += sec.marksEach; updateProgress(q.subject, true); }
         else if (chosen !== undefined) updateProgress(q.subject, false);
+        answersLog.push({ type:'mcq', question_id: q._id, q: q.q,
+          chosen: chosenText, correct, isCorrect: isCorrect ? 1 : 0, marks: sec.marksEach });
       });
     } else {
       const qs = examQuestions[sec.id] || [];
-      qs.forEach((_,i) => {
+      qs.forEach((q,i) => {
         const ans = (examAnswers[sec.id + '-' + i] || '').trim();
-        // Estimate: full marks if long enough, partial otherwise
         const minLen = sec.type === 'essay' ? 150 : sec.type === 'long' ? 80 : 30;
-        if (ans.length >= minLen) secScore += sec.marksEach;
-        else if (ans.length >= minLen * 0.4) secScore += Math.round(sec.marksEach * 0.5);
+        let earned = 0;
+        if (ans.length >= minLen) earned = sec.marksEach;
+        else if (ans.length >= minLen * 0.4) earned = Math.round(sec.marksEach * 0.5);
+        secScore += earned;
+        answersLog.push({ type: sec.type, q: q.q, studentAnswer: ans,
+          marks: sec.marksEach, estimated_marks: earned, teacher_marks_set: false });
       });
     }
     totalScore += secScore;
@@ -4156,16 +4163,36 @@ function submitExam() {
   const grade = pct >= 90 ? 'A+' : pct >= 75 ? 'A' : pct >= 60 ? 'B' : pct >= 45 ? 'C' : 'D';
   const emoji  = pct >= 75 ? '🏆' : pct >= 50 ? '⭐' : '💪';
 
+  // Persist result (offline-first + sync)
+  const studentInfo = (typeof getStudentInfo === 'function') ? (getStudentInfo() || {}) : {};
+  if (typeof persistExamResult === 'function') {
+    persistExamResult({
+      exam_type:        examType,
+      student_name:     studentInfo.name || '',
+      student_section:  studentInfo.section || '',
+      class_level:      getActiveClass() || '',
+      mcq_score:        breakdown.find(b => b.label.includes('A'))?.score || 0,
+      mcq_total:        breakdown.find(b => b.label.includes('A'))?.max  || 0,
+      answers_log:      answersLog,
+      taken_at:         new Date().toISOString(),
+    });
+  }
+
   document.getElementById('exam-content').style.display = 'none';
   document.getElementById('exam-timer-bar').style.display = 'none';
 
   const bdHTML = breakdown.map(b =>
     `<div>📌 <b>${b.label}:</b> ${b.score} / ${b.max}</div>`).join('');
 
+  const studentLine = studentInfo.name
+    ? `<div style="font-size:14px;color:var(--clr-muted);margin-bottom:6px;">👤 ${studentInfo.name}${studentInfo.section ? ' · ' + studentInfo.section : ''}</div>`
+    : '';
+
   const res = document.getElementById('exam-result');
   res.style.display = 'block';
   res.innerHTML = `
     <div class="result-card">
+      ${studentLine}
       <div class="result-emoji">${emoji}</div>
       <div class="result-title">${cfg.label} Complete!</div>
       <div class="result-score">${totalScore} / ${totalMax}</div>
@@ -4176,7 +4203,7 @@ function submitExam() {
         </div>
       </div>
       <div class="result-actions" style="flex-wrap:wrap;">
-        <button class="big-btn btn-green"  onclick="startExam('${examType}')">Try Again 🔄</button>
+        <button class="big-btn btn-green"  onclick="startExamWithModal('${examType}')">Try Again 🔄</button>
         <button class="exam-pdf-btn"       onclick="downloadExamPDF()">📄 Download Paper</button>
         <button class="big-btn btn-orange" onclick="showPage('page-home')">Home 🏠</button>
       </div>
@@ -4188,11 +4215,12 @@ function downloadExamPDF() {
   const { jsPDF } = window.jspdf;
   if (!jsPDF) { showToast('PDF library not loaded yet. Try again in a moment.'); return; }
 
-  const cfg   = examConfig;
-  const cls   = getActiveClass() ? 'Class ' + getActiveClass() : 'All Classes';
-  const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' });
-  const doc   = new jsPDF({ unit:'mm', format:'a4' });
-  const W     = doc.internal.pageSize.getWidth();
+  const cfg    = examConfig;
+  const cls    = getActiveClass() ? 'Class ' + getActiveClass() : 'All Classes';
+  const today  = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' });
+  const student = (typeof getStudentInfo === 'function') ? (getStudentInfo() || {}) : {};
+  const doc    = new jsPDF({ unit:'mm', format:'a4' });
+  const W      = doc.internal.pageSize.getWidth();
   const margin = 15;
   const usable = W - margin * 2;
   let y = 20;
@@ -4205,35 +4233,51 @@ function downloadExamPDF() {
   function checkPage(needed = 8) {
     if (y + needed > 275) { doc.addPage(); y = 20; }
   }
-
   function hline(yy) {
     doc.setDrawColor(180); doc.setLineWidth(0.3);
     doc.line(margin, yy, W - margin, yy);
   }
 
-  // ── Header ──
-  doc.setFillColor(79, 70, 229);
-  doc.rect(0, 0, W, 18, 'F');
-  doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(255,255,255);
-  doc.text('AI STUDY BUDDY — ' + safeText(cfg.label.toUpperCase()), W/2, 11, {align:'center'});
+  // ── Branded header (uses institute branding if configured) ──
+  const brand = window.BRAND;
+  if (brand && typeof addBrandedPdfHeader === 'function') {
+    const extraLines = [
+      safeText(cfg.label + ' Examination  ·  ' + cls + '  ·  ' + today),
+      student.name ? 'Student: ' + safeText(student.name) + (student.section ? '  ·  ' + safeText(student.section) : '') : '',
+      'Total Marks: ' + cfg.totalMarks + '  ·  Time Allowed: ' + cfg.timeMinutes + ' minutes',
+    ].filter(Boolean);
+    y = addBrandedPdfHeader(doc, extraLines);
+  } else {
+    // Default header (no branding configured)
+    const primaryRGB = [79, 70, 229];
+    doc.setFillColor(...primaryRGB);
+    doc.rect(0, 0, W, 18, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(255,255,255);
+    doc.text('AI STUDY BUDDY — ' + safeText(cfg.label.toUpperCase()), W/2, 11, {align:'center'});
 
-  y = 26;
-  doc.setTextColor(30,27,75); doc.setFont('helvetica','bold'); doc.setFontSize(11);
-  doc.text(safeText(cfg.label + ' Examination Paper'), W/2, y, {align:'center'}); y+=7;
-  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(100,100,120);
-  doc.text('Date: ' + today + '     Subject: ' + safeText(cls) + '     Total Marks: ' + cfg.totalMarks + '     Time: ' + cfg.timeMinutes + ' mins', W/2, y, {align:'center'}); y+=5;
-  hline(y); y+=6;
+    y = 26;
+    doc.setTextColor(30,27,75); doc.setFont('helvetica','bold'); doc.setFontSize(11);
+    doc.text(safeText(cfg.label + ' Examination Paper'), W/2, y, {align:'center'}); y += 7;
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(100,100,120);
+    doc.text('Date: ' + today + '     ' + cls + '     Total Marks: ' + cfg.totalMarks + '     Time: ' + cfg.timeMinutes + ' mins', W/2, y, {align:'center'}); y += 5;
+    if (student.name) {
+      doc.setFontSize(9); doc.setTextColor(60,60,80);
+      doc.text('Student: ' + safeText(student.name) + (student.section ? '   Section: ' + safeText(student.section) : ''), W/2, y, {align:'center'}); y += 5;
+    }
+    hline(y); y += 6;
+  }
 
   // General instructions
   doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(60,60,80);
-  doc.text('General Instructions:', margin, y); y+=5;
+  doc.text('General Instructions:', margin, y); y += 5;
   doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(80,80,100);
   const instrs = [
     '1. All questions are compulsory unless stated otherwise.',
     '2. Write clearly and neatly. Marks will be deducted for illegible answers.',
     '3. For MCQ, choose the best option. Marks are not deducted for wrong answers.',
+    '4. Short answer questions require 2-3 sentences. Long answers require a paragraph.',
   ];
-  instrs.forEach(t => { doc.text(safeText(t), margin + 2, y); y += 4.5; });
+  instrs.forEach(instr => { doc.text(safeText(instr), margin + 2, y); y += 4.5; });
   hline(y); y += 6;
 
   // ── Sections ──
@@ -4251,11 +4295,10 @@ function downloadExamPDF() {
       checkPage(16);
       const qnum = 'Q' + (qi + 1) + '.';
       doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(50,50,70);
-      doc.text(qnum + ' [' + sec.marksEach + (sec.marksEach>1?' marks':' mark') + ']', margin, y);
-      y += 5;
+      doc.text(qnum + ' [' + sec.marksEach + (sec.marksEach > 1 ? ' marks' : ' mark') + ']', margin, y); y += 5;
 
       doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(30,30,50);
-      const qLines = doc.splitTextToSize(safeText(q.q || q.q), usable - 4);
+      const qLines = doc.splitTextToSize(safeText(q.q), usable - 4);
       qLines.forEach(line => { checkPage(6); doc.text(line, margin + 4, y); y += 5; });
 
       if (sec.type === 'mcq') {
@@ -4266,17 +4309,23 @@ function downloadExamPDF() {
           const optLine = doc.splitTextToSize(safeText('(' + labels[oi] + ') ' + opt), (usable/2) - 4);
           const xOff = (oi % 2 === 0) ? margin + 6 : margin + 6 + usable / 2;
           if (oi % 2 === 0 && oi > 0) y += 5;
-          optLine.forEach((line, li) => { if(li===0) doc.text(line, xOff, y); });
+          optLine.forEach((line, li) => { if (li === 0) doc.text(line, xOff, y); });
           if (oi % 2 === 1 || oi === opts.length - 1) y += 5;
         });
         y += 2;
       } else {
-        // Answer lines
+        // Answer lines for written questions
         const lineCount = sec.type === 'essay' ? 8 : sec.type === 'long' ? 5 : 3;
         for (let l = 0; l < lineCount; l++) {
           checkPage(6);
           doc.setDrawColor(200); doc.setLineWidth(0.2);
           doc.line(margin + 4, y, W - margin - 4, y); y += 6;
+        }
+        // Pending review note for written sections
+        if (qi === qs.length - 1) {
+          checkPage(8);
+          doc.setFontSize(8); doc.setTextColor(150,100,50);
+          doc.text('* Written answers will be reviewed and marked by your teacher.', margin + 4, y); y += 6;
         }
         y += 2;
       }
@@ -4284,14 +4333,19 @@ function downloadExamPDF() {
     y += 4;
   });
 
-  // Footer on every page
-  const pageCount = doc.internal.getNumberOfPages();
-  for (let p = 1; p <= pageCount; p++) {
-    doc.setPage(p);
-    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(150,150,170);
-    hline(285);
-    doc.text('AI Study Buddy  |  ' + safeText(cfg.label) + '  |  ' + cls, margin, 290);
-    doc.text('Page ' + p + ' of ' + pageCount, W - margin, 290, { align:'right' });
+  // Footer — branded if available, default otherwise
+  if (!brand || typeof addBrandedPdfHeader !== 'function') {
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= pageCount; p++) {
+      doc.setPage(p);
+      doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(150,150,170);
+      hline(285);
+      doc.text('AI Study Buddy  |  ' + safeText(cfg.label) + '  |  ' + cls, margin, 290);
+      doc.text('Page ' + p + ' of ' + pageCount, W - margin, 290, { align:'right' });
+    }
+  } else {
+    // addBrandedPdfHeader handles footer for all pages
+    addBrandedPdfHeader(doc, []);
   }
 
   const fname = safeText(cfg.label.replace(/\s+/g,'-')) + '-' + cls.replace(/\s+/g,'-') + '-' + new Date().getFullYear() + '.pdf';
@@ -5092,6 +5146,21 @@ function deleteCsvBank(bankId) {
 // ---- Sample CSV download (full schema) ----
 function downloadSampleCsv() { downloadStarterCsv(); }
 
+function downloadBulkStudentTemplate() {
+  const csv = [
+    'name,email,class_level,section',
+    'Aarav Sharma,aarav@example.com,7,A',
+    'Priya Patel,priya@example.com,7,B',
+    'Rohan Mehta,rohan@example.com,8,A',
+  ].join('\n');
+  const blob = new Blob([csv], { type:'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'students_import_template.csv'; a.click();
+  URL.revokeObjectURL(url);
+  showToast('📥 Student import template downloaded!');
+}
+
 // Downloads full 152-question starter CSV (all ex-hardcoded Class 7 questions)
 function downloadStarterCsv() {
   // The CSV is embedded in the app and always available offline
@@ -5130,7 +5199,12 @@ function showPage(id) {
   if (id === 'page-daily')    injectClassBanner('page-daily');
   if (id === 'page-mock')     injectClassBanner('page-mock');
   if (id === 'page-exam')     injectClassBanner('page-exam');
-  if (id === 'page-csv') { renderCsvBanksList(); renderExamBanksList(); updateSampleBankButton(); updateSampleExamBankButton(); }
+  if (id === 'page-csv')    { renderCsvBanksList(); renderExamBanksList(); updateSampleBankButton(); updateSampleExamBankButton(); }
+  if (id === 'page-admin')  { if (typeof renderAdminPage === 'function') renderAdminPage(); }
+  if (id === 'page-review') { if (typeof renderReviewPage === 'function') renderReviewPage(); }
+  if (id === 'page-auth')   { /* nothing extra */ }
+  // Re-apply translations whenever we navigate
+  if (typeof applyTranslations === 'function') applyTranslations();
   window.scrollTo(0, 0);
 }
 
@@ -5210,13 +5284,35 @@ function updateSampleBankButton() {
 }
 
 function init() {
-  assignDefaultIds();   // stamp D-{i} ids on built-in bank once at startup
+  assignDefaultIds();
+  // i18n — apply saved language immediately
+  if (typeof applyTranslations === 'function') applyTranslations();
+  // Supabase — auth + branding + sync (non-blocking)
+  if (typeof initSupabase === 'function') initSupabase();
   updateClassUI();
   updateNavScore();
   updateHomeStats();
   const subjects = getAllSubjects();
   selectedSubject = subjects[0] || 'Math';
   renderClassDropdown();
+  // Highlight active language button
+  highlightLangBtn();
+}
+
+function highlightLangBtn() {
+  ['en','hi','gu'].forEach(l => {
+    const btn = document.getElementById('lang-' + l);
+    if (btn) btn.classList.toggle('lang-btn-active', l === currentLang);
+  });
+}
+
+// Wrapper: shows student name modal then starts exam
+function startExamWithModal(type) {
+  if (typeof showStudentNameModal === 'function') {
+    showStudentNameModal(() => startExam(type));
+  } else {
+    startExam(type);
+  }
 }
 
 window.addEventListener('DOMContentLoaded', init);

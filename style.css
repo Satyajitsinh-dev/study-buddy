@@ -1117,3 +1117,162 @@ body {
 }
 .nqs-btn-secondary:hover { background:#ede9fe; }
 .nqs-hint { font-size:13px; color:#9ca3af; margin:0; }
+
+/* =====================================================
+   LANGUAGE SWITCHER
+   ===================================================== */
+.lang-switcher {
+  display: flex; gap: 3px; align-items: center;
+}
+.lang-btn {
+  background: rgba(255,255,255,.15); color: #fff;
+  border: 1px solid rgba(255,255,255,.3); border-radius: 8px;
+  padding: 4px 9px; font-size: 11px; font-weight: 700;
+  cursor: pointer; font-family: 'Nunito', sans-serif;
+  transition: background .15s;
+}
+.lang-btn:hover { background: rgba(255,255,255,.3); }
+.lang-btn-active {
+  background: #fff !important; color: var(--clr-primary) !important;
+  border-color: #fff;
+}
+
+/* =====================================================
+   SYNC BADGE
+   ===================================================== */
+.sync-badge {
+  font-size: 11px; font-weight: 700; padding: 4px 10px;
+  border-radius: 20px; cursor: default;
+}
+.sync-badge.offline  { background: rgba(239,68,68,.2);  color: #fca5a5; }
+.sync-badge.pending  { background: rgba(245,158,11,.2); color: #fcd34d; }
+.sync-badge.synced   { background: rgba(16,185,129,.2); color: #6ee7b7; }
+
+/* =====================================================
+   AUTH UI
+   ===================================================== */
+.auth-wrap  { display: flex; align-items: center; gap: 6px; }
+.auth-label { font-size: 11px; color: rgba(255,255,255,.75); max-width: 120px;
+              overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.auth-btn {
+  background: rgba(255,255,255,.15); color: #fff;
+  border: 1px solid rgba(255,255,255,.35); border-radius: 10px;
+  padding: 5px 12px; font-size: 12px; font-weight: 700;
+  cursor: pointer; font-family: inherit; transition: background .15s;
+  white-space: nowrap;
+}
+.auth-btn:hover { background: rgba(255,255,255,.28); }
+
+.auth-container {
+  max-width: 480px; margin: 0 auto;
+  background: var(--clr-card); border-radius: var(--radius);
+  padding: 28px; box-shadow: var(--shadow);
+}
+.auth-sent-box {
+  text-align: center; padding: 24px;
+  background: #f0fdf4; border-radius: 14px; border: 2px solid #bbf7d0;
+}
+
+/* =====================================================
+   STUDENT NAME MODAL
+   ===================================================== */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(15,10,40,.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.modal-card {
+  background: var(--clr-card); border-radius: 20px;
+  padding: 28px 24px; width: 100%; max-width: 420px;
+  box-shadow: 0 8px 40px rgba(79,70,229,.3);
+}
+.modal-title {
+  font-family: 'Baloo 2', cursive; font-size: 22px;
+  font-weight: 800; color: var(--clr-primary); margin-bottom: 6px;
+}
+.modal-sub { font-size: 14px; color: var(--clr-muted); margin-bottom: 18px; }
+.modal-field { display: flex; flex-direction: column; gap: 5px; }
+.modal-actions {
+  display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; align-items: center;
+}
+
+/* =====================================================
+   ADMIN PANEL
+   ===================================================== */
+.admin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px; margin-top: 16px;
+}
+.admin-field { display: flex; flex-direction: column; gap: 5px; }
+
+.section-item {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--clr-card); border: 1.5px solid #e0e7ff;
+  border-radius: 12px; padding: 10px 14px; margin-bottom: 8px;
+}
+.section-class {
+  background: var(--clr-primary); color: #fff;
+  border-radius: 8px; padding: 2px 10px; font-size: 12px; font-weight: 800;
+}
+.section-name  { font-weight: 700; font-size: 14px; flex: 1; }
+.section-count { font-size: 12px; color: var(--clr-muted); }
+
+.card-admin  { background: linear-gradient(135deg,#0f172a,#1e293b); }
+.card-review { background: linear-gradient(135deg,#d97706,#b45309); }
+
+/* =====================================================
+   TEACHER REVIEW PAGE
+   ===================================================== */
+.review-card {
+  background: var(--clr-card); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 20px; margin-bottom: 16px;
+  border-left: 4px solid var(--clr-primary);
+}
+.review-card-header {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  margin-bottom: 14px; padding-bottom: 10px;
+  border-bottom: 1px solid #e0e7ff;
+}
+.review-student { font-weight: 800; font-size: 16px; color: var(--clr-primary); }
+.review-meta    { font-size: 12px; color: var(--clr-muted); }
+.review-mcq     { font-size: 13px; font-weight: 700; color: var(--clr-green);
+                  background: #d1fae5; border-radius: 8px; padding: 2px 10px; }
+.review-item {
+  border: 1.5px solid #e0e7ff; border-radius: 12px;
+  padding: 14px; margin-bottom: 10px;
+}
+.review-q-type  { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.review-answer  {
+  background: #f8fafc; border-radius: 8px; padding: 10px 12px;
+  font-size: 14px; line-height: 1.6; color: var(--clr-text);
+  min-height: 40px; margin-bottom: 10px; white-space: pre-wrap;
+}
+.review-marks-row {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+}
+.review-mark-btn {
+  padding: 5px 14px; border-radius: 8px; border: 1.5px solid #c7d2fe;
+  background: #eef2ff; color: var(--clr-primary); font-size: 12px;
+  font-weight: 700; cursor: pointer; font-family: inherit;
+  transition: all .15s;
+}
+.review-mark-btn:hover { background: var(--clr-primary); color: #fff; border-color: var(--clr-primary); }
+.review-mark-set { font-size: 13px; font-weight: 800; color: var(--clr-green); }
+
+/* =====================================================
+   RESPONSIVE — topbar with more items
+   ===================================================== */
+@media (max-width: 640px) {
+  .lang-switcher { gap: 2px; }
+  .lang-btn      { padding: 3px 6px; font-size: 10px; }
+  .auth-label    { display: none; }
+  .auth-btn      { padding: 4px 8px; font-size: 11px; }
+  .sync-badge    { display: none !important; }
+  .modal-card    { padding: 20px 16px; }
+  .admin-form-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 400px) {
+  .lang-switcher { display: none; }
+}

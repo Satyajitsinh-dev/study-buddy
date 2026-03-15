@@ -3,23 +3,44 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#4f46e5" />
   <title>AI Study Buddy</title>
+  <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="style.css" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Baloo+2:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- Supabase JS SDK — loaded only when SUPABASE_URL is set in supabase.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="i18n.js"></script>
+  <script src="supabase.js"></script>
 </head>
 <body>
 
   <!-- ===== TOP NAV ===== -->
   <header class="topbar">
     <div class="topbar-left">
-      <span class="logo-emoji">🤖</span>
-      <span class="logo-text">AI Study Buddy</span>
+      <img id="brand-logo" src="" alt="" style="display:none;height:32px;width:32px;object-fit:contain;border-radius:6px;" />
+      <span class="logo-emoji" id="logo-emoji-default">🤖</span>
+      <span class="logo-text" id="brand-name" data-i18n="app_name">AI Study Buddy</span>
     </div>
     <div class="topbar-right">
+      <!-- Language switcher -->
+      <div class="lang-switcher">
+        <button class="lang-btn" onclick="setLang('en')" id="lang-en">EN</button>
+        <button class="lang-btn" onclick="setLang('hi')" id="lang-hi">हिं</button>
+        <button class="lang-btn" onclick="setLang('gu')" id="lang-gu">ગુ</button>
+      </div>
+      <!-- Sync status badge -->
+      <span id="sync-badge" class="sync-badge" style="display:none;"></span>
+      <!-- Auth -->
+      <div class="auth-wrap" id="auth-wrap">
+        <span class="auth-label" id="auth-label"></span>
+        <button class="auth-btn" id="auth-btn" onclick="showPage('page-auth')">Sign in</button>
+      </div>
+      <!-- Class dropdown -->
       <div class="class-dropdown-wrap" id="class-dropdown-wrap">
         <button class="class-dropdown-btn" id="class-dropdown-btn" onclick="toggleClassDropdown()" title="Select Class">
-          <span id="class-dropdown-label">🎓 Select Class</span>
+          <span id="class-dropdown-label" data-i18n="select_class">🎓 Select Class</span>
           <span class="class-dropdown-arrow">▾</span>
         </button>
         <div class="class-dropdown-menu" id="class-dropdown-menu" style="display:none;">
@@ -47,10 +68,10 @@
       </div>
       <!-- Shown only when no questions are loaded -->
       <div id="home-upload-nudge" class="home-upload-nudge" style="display:none">
-        <p>📂 No questions loaded yet!</p>
+        <p data-i18n="home_load_prompt">📂 No questions loaded yet!</p>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:8px">
-          <button onclick="loadSampleBank()" class="nudge-btn-primary">📦 Load 2368 Sample Questions</button>
-          <button onclick="showPage('page-csv')" class="nudge-btn-secondary">➕ Upload Your Own Question Bank</button>
+          <button onclick="loadSampleBank()" class="nudge-btn-primary" data-i18n="btn_load_sample">📦 Load 2368 Sample Questions</button>
+          <button onclick="showPage('page-csv')" class="nudge-btn-secondary" data-i18n="btn_upload_bank">➕ Upload Your Own Question Bank</button>
         </div>
       </div>
     </div>
@@ -59,43 +80,55 @@
     <div class="feature-grid" style="margin-top:32px;">
       <button class="feat-card card-ai"    onclick="showPage('page-tutor')">
         <span class="feat-icon">💬</span>
-        <span class="feat-title">Ask AI Tutor</span>
-        <span class="feat-desc">Get instant doubt help!</span>
+        <span class="feat-title" data-i18n="feat_tutor">Ask AI Tutor</span>
+        <span class="feat-desc"  data-i18n="feat_tutor_sub">Get instant doubt help!</span>
       </button>
       <button class="feat-card card-quiz"  onclick="showPage('page-quiz')">
         <span class="feat-icon">📝</span>
-        <span class="feat-title">Practice Quiz</span>
-        <span class="feat-desc">Test chapter by chapter</span>
+        <span class="feat-title" data-i18n="feat_quiz">Practice Quiz</span>
+        <span class="feat-desc"  data-i18n="feat_quiz_sub">Test chapter by chapter</span>
       </button>
       <button class="feat-card card-daily" onclick="startDaily()">
         <span class="feat-icon">☀️</span>
-        <span class="feat-title">Daily Practice</span>
-        <span class="feat-desc">10 mixed questions</span>
+        <span class="feat-title" data-i18n="feat_daily">Daily Practice</span>
+        <span class="feat-desc"  data-i18n="feat_daily_sub">20 mixed questions</span>
       </button>
       <button class="feat-card card-mock"  onclick="startMock()">
         <span class="feat-icon">🎓</span>
-        <span class="feat-title">Mock Exam</span>
-        <span class="feat-desc">Full exam simulation</span>
+        <span class="feat-title" data-i18n="feat_mock">Mock Exam</span>
+        <span class="feat-desc"  data-i18n="feat_mock_sub">Full exam simulation</span>
       </button>
-      <button class="feat-card card-term"  onclick="startExam('term')">
+      <button class="feat-card card-term"  onclick="startExamWithModal('term')">
         <span class="feat-icon">📋</span>
-        <span class="feat-title">Term Exam</span>
-        <span class="feat-desc">50 marks · mixed paper</span>
+        <span class="feat-title" data-i18n="feat_term">Term Exam</span>
+        <span class="feat-desc"  data-i18n="feat_term_sub">50 marks · mixed paper</span>
       </button>
-      <button class="feat-card card-annual" onclick="startExam('annual')">
+      <button class="feat-card card-annual" onclick="startExamWithModal('annual')">
         <span class="feat-icon">🏅</span>
-        <span class="feat-title">Annual Exam</span>
-        <span class="feat-desc">80 marks · full paper</span>
+        <span class="feat-title" data-i18n="feat_annual">Annual Exam</span>
+        <span class="feat-desc"  data-i18n="feat_annual_sub">80 marks · full paper</span>
       </button>
       <button class="feat-card card-prog"  onclick="showPage('page-progress')">
         <span class="feat-icon">📊</span>
-        <span class="feat-title">My Progress</span>
-        <span class="feat-desc">Track your scores</span>
+        <span class="feat-title" data-i18n="feat_progress">My Progress</span>
+        <span class="feat-desc"  data-i18n="feat_progress_sub">Track your scores</span>
       </button>
       <button class="feat-card card-csv"   onclick="showPage('page-csv')">
         <span class="feat-icon">📂</span>
-        <span class="feat-title">Question Bank</span>
-        <span class="feat-desc">Upload CSV questions</span>
+        <span class="feat-title" data-i18n="feat_bank">Question Bank</span>
+        <span class="feat-desc"  data-i18n="feat_bank_sub">Upload CSV questions</span>
+      </button>
+      <!-- Admin-only: hidden for students via renderAdminCards() -->
+      <button class="feat-card card-admin" id="feat-admin-card" style="display:none" onclick="showPage('page-admin')">
+        <span class="feat-icon">⚙️</span>
+        <span class="feat-title" data-i18n="feat_admin">Admin Panel</span>
+        <span class="feat-desc"  data-i18n="feat_admin_sub">Branding &amp; settings</span>
+      </button>
+      <!-- Teacher+: hidden for students -->
+      <button class="feat-card card-review" id="feat-review-card" style="display:none" onclick="showPage('page-review')">
+        <span class="feat-icon">📝</span>
+        <span class="feat-title" data-i18n="feat_review">Review Answers</span>
+        <span class="feat-desc"  data-i18n="feat_review_sub">Mark student papers</span>
       </button>
     </div>
   </section>
@@ -439,6 +472,159 @@
     </div>
     <div id="exam-content"></div>
     <div id="exam-result" style="display:none;"></div>
+  </section>
+
+  <!-- ===== STUDENT NAME MODAL (shown before exams) ===== -->
+  <div id="student-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card">
+      <h3 class="modal-title" data-i18n="exam_modal_title">Before you begin…</h3>
+      <p class="modal-sub" data-i18n="exam_modal_sub">Enter your name so it appears on your result and PDF.</p>
+      <div class="modal-field">
+        <label class="filter-label" data-i18n="exam_modal_name">Your name</label>
+        <input id="student-name-input" class="bank-name-input" type="text"
+               placeholder="e.g. Aanya Sharma" autocomplete="name" />
+      </div>
+      <div class="modal-field" style="margin-top:10px;">
+        <label class="filter-label" data-i18n="exam_modal_section">Section / Class (optional)</label>
+        <input id="student-section-input" class="bank-name-input" type="text"
+               placeholder="e.g. 7-A or Rose" />
+      </div>
+      <div class="modal-actions">
+        <button id="student-modal-start" class="big-btn btn-green" data-i18n="exam_modal_start">Start Exam ✍️</button>
+        <button id="student-modal-skip"  class="key-change-btn"   data-i18n="exam_modal_skip">Skip</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== AUTH PAGE ===== -->
+  <section class="page" id="page-auth" style="display:none;">
+    <div class="page-header">
+      <button class="back-btn" onclick="showPage('page-home')" data-i18n="back">← Back</button>
+      <h2 data-i18n="auth_title">Sign in to AI Study Buddy</h2>
+      <p>Magic link — no password needed. 🔗</p>
+    </div>
+    <div class="auth-container">
+      <div id="auth-form">
+        <label class="filter-label" data-i18n="auth_email">Your email address</label>
+        <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;">
+          <input id="auth-email-input" class="bank-name-input" type="email"
+                 placeholder="teacher@myschool.in" style="flex:1;min-width:220px;" />
+          <button class="csv-sample-load-btn" onclick="sendMagicLink(document.getElementById('auth-email-input').value.trim())"
+                  data-i18n="auth_send_link">Send Magic Link 🔗</button>
+        </div>
+        <p class="csv-sample-hint" style="margin-top:12px;">
+          💡 A one-click login link will be sent to your email. No password required.<br>
+          First time? Ask your school admin to add your email to the system.
+        </p>
+      </div>
+      <div id="auth-sent-msg" style="display:none;">
+        <div class="auth-sent-box">
+          <span style="font-size:36px;">📬</span>
+          <p data-i18n="auth_sent" style="font-size:16px;font-weight:700;">Check your email for the login link!</p>
+          <p style="color:var(--clr-muted);font-size:14px;">Click the link in the email to sign in. You can close this tab.</p>
+        </div>
+      </div>
+      <div style="margin-top:24px;text-align:center;">
+        <button class="key-change-btn" onclick="showPage('page-home')" data-i18n="auth_skip">Continue without signing in</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== ADMIN PANEL ===== -->
+  <section class="page" id="page-admin" style="display:none;">
+    <div class="page-header">
+      <button class="back-btn" onclick="showPage('page-home')" data-i18n="back">← Back</button>
+      <h2 data-i18n="admin_title">⚙️ Admin Panel</h2>
+      <p>Branding, sections and student management</p>
+    </div>
+
+    <!-- Branding -->
+    <div class="csv-upload-card">
+      <div class="csv-format-title" data-i18n="admin_branding">Institute Branding</div>
+      <div class="admin-form-grid">
+        <div class="admin-field">
+          <label class="filter-label" data-i18n="admin_institute">Institute Name</label>
+          <input id="brand-name-input" class="bank-name-input" type="text" placeholder="Green Valley School" />
+        </div>
+        <div class="admin-field">
+          <label class="filter-label" data-i18n="admin_logo">Logo URL</label>
+          <input id="brand-logo-url" class="bank-name-input" type="url" placeholder="https://…/logo.png" />
+        </div>
+        <div class="admin-field">
+          <label class="filter-label" data-i18n="admin_address">Address</label>
+          <input id="brand-address" class="bank-name-input" type="text" placeholder="123 Main St, City" />
+        </div>
+        <div class="admin-field">
+          <label class="filter-label" data-i18n="admin_phone">Phone</label>
+          <input id="brand-phone" class="bank-name-input" type="tel" placeholder="+91 98765 43210" />
+        </div>
+        <div class="admin-field">
+          <label class="filter-label" data-i18n="admin_email">Email</label>
+          <input id="brand-email" class="bank-name-input" type="email" placeholder="info@myschool.in" />
+        </div>
+        <div class="admin-field">
+          <label class="filter-label" data-i18n="admin_footer">Footer Text (PDF)</label>
+          <input id="brand-footer" class="bank-name-input" type="text" placeholder="Confidential · For internal use only" />
+        </div>
+        <div class="admin-field">
+          <label class="filter-label" data-i18n="admin_color_primary">Primary Colour</label>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input id="brand-primary-color" type="color" value="#4f46e5" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;" />
+            <span style="font-size:13px;color:var(--clr-muted);">Live preview in topbar</span>
+          </div>
+        </div>
+        <div class="admin-field">
+          <label class="filter-label" data-i18n="admin_color_sec">Secondary Colour</label>
+          <input id="brand-secondary-color" type="color" value="#7c3aed" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;" />
+        </div>
+      </div>
+      <div style="margin-top:16px;">
+        <button class="csv-sample-load-btn" onclick="saveBranding(collectBrandingForm())" data-i18n="admin_save">💾 Save Branding</button>
+      </div>
+    </div>
+
+    <!-- Classes & Sections -->
+    <div class="csv-banks-section" style="margin-top:28px;">
+      <h3 data-i18n="admin_sections">Classes &amp; Sections</h3>
+      <div id="sections-list" style="margin-top:12px;"></div>
+      <div class="admin-add-section" style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <input id="new-section-class" class="bank-name-input" type="text"
+               placeholder="Class (e.g. 7)" style="width:100px;" />
+        <input id="new-section-name" class="bank-name-input" type="text"
+               placeholder="Section (e.g. A or Rose)" style="width:160px;" />
+        <button class="csv-sample-load-btn" onclick="addSectionUI()" data-i18n="admin_add_section">+ Add Section</button>
+      </div>
+    </div>
+
+    <!-- Bulk Student Import -->
+    <div class="csv-banks-section" style="margin-top:28px;">
+      <h3 data-i18n="admin_students">Student Import</h3>
+      <p class="exam-bank-desc">Upload a CSV with columns: <code>name, email, class_level, section</code><br>
+        Students will receive a magic-link invite to their email.</p>
+      <div class="csv-drop-zone" style="margin-top:12px;"
+           onclick="document.getElementById('bulk-student-file').click()">
+        <div class="csv-drop-icon">👥</div>
+        <div class="csv-drop-title" data-i18n="admin_bulk_import">Import Students CSV</div>
+        <div class="csv-drop-sub">name, email, class_level, section</div>
+        <input type="file" id="bulk-student-file" accept=".csv" style="display:none"
+               onchange="handleBulkStudentFile(event)" />
+      </div>
+      <div style="margin-top:8px;">
+        <button class="csv-sample-download-btn"
+          onclick="downloadBulkStudentTemplate()">⬇️ Download Student CSV Template</button>
+      </div>
+      <div id="bulk-import-preview"></div>
+    </div>
+  </section>
+
+  <!-- ===== TEACHER ANSWER REVIEW ===== -->
+  <section class="page" id="page-review" style="display:none;">
+    <div class="page-header">
+      <button class="back-btn" onclick="showPage('page-home')" data-i18n="back">← Back</button>
+      <h2 data-i18n="review_title">📝 Answer Review</h2>
+      <p>Mark short, long and essay answers for your students</p>
+    </div>
+    <div id="review-list"></div>
   </section>
 
   <!-- ===== TOAST ===== -->
