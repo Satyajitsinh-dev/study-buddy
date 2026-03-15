@@ -28,8 +28,8 @@
       results sync automatically when you reconnect.
    ===================================================== */
 
-const SUPABASE_URL  = '';   // e.g. 'https://abcdef.supabase.co'
-const SUPABASE_ANON = '';   // Your anon/public key
+const SUPABASE_URL  = 'https://rgxtuyspvtfmbofbymrc.supabase.co';   // e.g. 'https://abcdef.supabase.co'
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJneHR1eXNwdnRmbWJvZmJ5bXJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NDM0MzksImV4cCI6MjA4OTExOTQzOX0.VXjJXOsSdCkwVWZOs78AwkkXKw558soqw1foozbFZus';   // Your anon/public key
 
 /* ---- Supabase client (lazy-initialised) ---- */
 let _sb = null;
